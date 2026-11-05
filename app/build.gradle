@@ -1,0 +1,53 @@
+plugins {
+    id 'com.android.application'
+}
+
+// Each automatic build gets a higher version number so the APK installs as an update.
+def buildNumber = (System.getenv("GITHUB_RUN_NUMBER") ?: "1").toInteger()
+
+android {
+    namespace 'com.dayleestatcardz.app'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'com.dayleestatcardz.app'
+        minSdk 24
+        targetSdk 34
+        versionCode buildNumber
+        versionName "1.0.${buildNumber}"
+    }
+
+    // Fixed signing key so every new build installs over the old one (your saved keys are kept).
+    signingConfigs {
+        release {
+            storeFile file('dsc.keystore')
+            storePassword 'dayleestatcardz'
+            keyAlias 'dsc'
+            keyPassword 'dayleestatcardz'
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.release
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    // The app's screens (HTML/CSS/JS) live in /www and are bundled inside the APK.
+    sourceSets {
+        main {
+            assets.srcDirs = ['../www']
+        }
+    }
+
+    lint {
+        checkReleaseBuilds false
+        abortOnError false
+    }
+}
