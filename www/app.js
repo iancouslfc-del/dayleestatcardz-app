@@ -393,6 +393,7 @@ function renderMatch() {
   const A = S.analysis, f = A.fixture;
   const fav = (t) => !!S.favTeams[t.id];
   const nH = A.home.sample.length, nA = A.away.sample.length;
+  const why = (side) => side.sample.length >= 10 ? "" : `<span class="dim small" style="display:block;margin-top:3px">${esc(seasonsNote(side))}</span>`;
   app().innerHTML = `
   <a class="back" href="#/">${ICON.back} Fixtures</a>
   <div class="card match-head">
@@ -407,8 +408,8 @@ function renderMatch() {
     <div class="mh-foot">${f.referee ? `<span>Referee: <b style="color:var(--text)">${esc(f.referee)}</b></span>` : ""}${f.stadium ? `<span>${esc(f.stadium)}</span>` : ""}</div>
   </div>
   <div class="card rule">
-    <div class="r"><span class="ic">${ICON.home}</span><div><b>${esc(f.home.name)}</b>Last <span class="n ${nH < 10 ? "low" : ""}">${nH}</span> HOME matches</div></div>
-    <div class="r"><span class="ic">${ICON.plane}</span><div><b>${esc(f.away.name)}</b>Last <span class="n ${nA < 10 ? "low" : ""}">${nA}</span> AWAY matches</div></div>
+    <div class="r"><span class="ic">${ICON.home}</span><div><b>${esc(f.home.name)}</b>Last <span class="n ${nH < 10 ? "low" : ""}">${nH}</span> HOME matches${why(A.home)}</div></div>
+    <div class="r"><span class="ic">${ICON.plane}</span><div><b>${esc(f.away.name)}</b>Last <span class="n ${nA < 10 ? "low" : ""}">${nA}</span> AWAY matches${why(A.away)}</div></div>
   </div>
   <div class="tabs">
     <div class="tabbar">${Object.keys(TAB_NAMES).map((t) => `<button class="${S.tab === t ? "active" : ""}" data-action="tab" data-tab="${t}">${TAB_NAMES[t]}</button>`).join("")}</div>
@@ -468,9 +469,14 @@ function renderMatchBody() {
   el.innerHTML = html;
 }
 
+function seasonsNote(side) {
+  const sc = (side.seasonsScanned || []).map((x) => typeof x === "string" ? x : `${x.season}: ${x.found}${x.error ? " (error)" : ""}`);
+  return sc.length ? "Seasons checked — " + sc.join(" · ") : "";
+}
 function colorOf(res) { const c = rateClass(res.pct, res.n); return c === "g" ? "#1ee38b" : c === "a" ? "#ffb84d" : c === "r" ? "#ff4f6d" : "#5d6862"; }
 function pill(res) {
   if (res.n === 0 && res.pending) return `<div class="pill load"><span class="p">···</span><span class="f">loading</span></div>`;
+  if (!res.sampleSize) return `<div class="pill na"><span class="p">—</span><span class="f">0 games</span></div>`;
   const cls = rateClass(res.pct, res.n);
   return `<div class="pill ${cls}${res.pending ? " load" : ""}"><span class="p">${fmtPct(res.pct)}</span><span class="f">${res.n ? `${res.hits}/${res.n}` : "no data"}</span></div>`;
 }
@@ -506,7 +512,7 @@ function openMarket(id) {
       <div class="big" style="color:${colorOf(res)}">${fmtPct(res.pct)}<small>${res.hits}/${res.n}${res.n < res.sampleSize ? ` · ${res.sampleSize - res.n} excluded` : ""}</small></div></div>
       <div style="margin-top:10px">${barChart(chartItemsFor(res), mk.line, { h: 140, aria: mk.label })}</div>`;
     for (const r of res.rows) html += matchRow(r, t, tab, period, mk);
-    if (!side.sample.length) html += `<p class="muted small">No completed ${side.side} matches found for this team in this competition (seasons checked: ${esc((side.seasonsScanned || []).join(", "))}).</p>`;
+    if (side.sample.length < 10) html += `<p class="muted small" style="margin:10px 0 0">Fewer than 10 ${side.side} matches in this competition. ${esc(seasonsNote(side))}</p>`;
     html += `</div>`;
   }
   html += `<p class="dim small" style="margin-top:12px">Every row above is a real completed match. ✓ = market won, ✗ = lost, – = excluded (no data, never counted as a loss).</p>`;

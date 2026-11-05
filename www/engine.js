@@ -143,9 +143,9 @@ const isInt = (v) => Number.isInteger(v) && v >= 0;
 //  3. PitchAPI league resolution
 // ---------------------------------------------------------------------
 async function pitchLeagues(keys) {
-  return cached("pitch:leagues", 6 * 3600, async () => {
+  return cached("pitch:leagues:v2", 6 * 3600, async () => {
     const d = await pitch("/v1/leagues", keys);
-    return (d?.leagues || []).map((l) => ({ id: l.id, name: l.name, cc: (l.country_code || "").toUpperCase(), img: l.image_url || null, seasons: l.seasons || [] }));
+    return (d?.leagues || []).map((l) => ({ id: l.id, name: l.name, cc: (l.country_code || "").toUpperCase(), img: l.image_url || null, seasons: [...(l.seasons || [])].sort((a, b) => (parseInt(b, 10) || 0) - (parseInt(a, 10) || 0) || String(b).localeCompare(String(a))) }));
   }, true);
 }
 
@@ -208,8 +208,7 @@ function slimMatch(m, comp) {
 async function seasonMatches(comp, season, status, keys) {
   const isCurrent = !season || season === comp.seasons[0];
   const ttl = status === "upcoming" ? 900 : isCurrent ? 900 : 7 * 24 * 3600;
-  const q = new URLSearchParams({ status });
-  if (season) q.set("season", season);
+  const q = "status=" + encodeURIComponent(status) + (season ? "&season=" + encodeURIComponent(season).replace(/%2F/gi, "/") : "");
   return cached(`pitch:lm:${comp.leagueId}:${season || "x"}:${status}:${isCurrent ? "cur" : "old"}`, ttl, async () => {
     const d = await pitch(`/v1/leagues/${comp.leagueId}/matches?${q}`, keys);
     return (d?.matches || []).map((m) => slimMatch(m, comp.code));
@@ -226,17 +225,30 @@ async function fixtures(code, keys) {
 
 const finished = (m) => String(m.status || "").toLowerCase() === "finished" && m.score;
 
-async function sampleFor(comp, teamId, side, beforeIso, keys) {
+function teamKey(name) { return tokens(name).sort().join(" "); }
+function sameTeam(t, team, key) { return !!t && (t.id === team.id || (!!key && teamKey(t.name) === key)); }
+
+async function sampleFor(comp, team, side, beforeIso, keys) {
   const before = Date.parse(beforeIso);
+  const key = teamKey(team.name);
   const out = []; const scanned = [];
   const seasons = comp.seasons.length ? comp.seasons.slice(0, MAX_SEASONS_BACK) : [null];
-  for (const s of seasons) {
-    let list;
-    try { list = await seasonMatches(comp, s, "played", keys); }
-    catch (e) { if (e.status === 404) continue; throw e; }
-    scanned.push(s || "current");
-    const mine = list.filter((m) => finished(m) && Date.parse(m.time) < before && (side === "home" ? m.home?.id === teamId : m.away?.id === teamId));
-    for (const m of mine) if (!out.find((x) => x.id === m.id)) out.push(m);
+  for (let i = 0; i < seasons.length; i++) {
+    const s = seasons[i];
+    let done;
+    try { done = (await seasonMatches(comp, s, "played", keys)).filter(finished); }
+    catch (e) { scanned.push({ season: s || "current", found: 0, error: e.message }); if (e.status === 404 || e.status === 400) continue; throw e; }
+    // Current season: if nothing played before kick-off came back, ask for the server's default season instead.
+    if (i === 0 && !done.some((m) => Date.parse(m.time) < before)) {
+      try {
+        const alt = (await seasonMatches(comp, null, "all", keys)).filter(finished);
+        if (alt.length) done = alt;
+      } catch {}
+    }
+    const mine = done.filter((m) => Date.parse(m.time) < before && sameTeam(side === "home" ? m.home : m.away, team, key));
+    let added = 0;
+    for (const m of mine) if (!out.find((x) => x.id === m.id)) { out.push(m); added++; }
+    scanned.push({ season: s || "current", found: added, listed: done.length });
     if (out.length >= SAMPLE_SIZE) break;
   }
   out.sort((a, b) => Date.parse(b.time) - Date.parse(a.time));
@@ -313,8 +325,8 @@ async function analysis(code, matchId, keys) {
   if (!fx.home || !fx.away || !fx.time) throw new ApiError(502, "BAD_MATCH", "Provider returned an incomplete fixture.");
   // Only matches played BEFORE this fixture's kick-off are eligible.
   const [h, a] = await Promise.all([
-    sampleFor(comp, fx.home.id, "home", fx.time, keys),
-    sampleFor(comp, fx.away.id, "away", fx.time, keys),
+    sampleFor(comp, fx.home, "home", fx.time, keys),
+    sampleFor(comp, fx.away, "away", fx.time, keys),
   ]);
   let fdList = null, fdError = null;
   try { fdList = await fdMatches(comp.fd, keys); } catch (e) { fdError = e.message; }
@@ -451,7 +463,7 @@ async function sources(keys) {
   const p = { id: "pitch", name: "PitchAPI", keyConfigured: !!keys.pitch };
   const t0 = Date.now();
   try {
-    mem.delete("pitch:leagues"); mem.delete("pitch:resolved"); LS.del("dsc:c:pitch:leagues");
+    mem.delete("pitch:leagues:v2"); mem.delete("pitch:resolved"); LS.del("dsc:c:pitch:leagues:v2");
     const leagues = await pitchLeagues(keys);
     p.ok = true; p.latencyMs = Date.now() - t0; p.detail = `${leagues.length} leagues available`;
     out.pitchLeagues = leagues.map((l) => ({ id: l.id, name: l.name, cc: l.cc, seasons: l.seasons.slice(0, 3) }));
