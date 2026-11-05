@@ -547,7 +547,7 @@ const LADDER = {
     min: { over: { FT: [0.5], H1: [0.5], H2: [0.5] } },
   },
 };
-const TIP_MIN_N = 5, TIP_MIN_RATE = 70, TIP_MIN_POOLED = 75;
+const TIP_MIN_N = 5, TIP_SMALL_N = 3, TIP_MIN_RATE = 70, TIP_MIN_POOLED = 75;
 const PERIOD_SHORT = { FT: "Full match", H1: "1st half", H2: "2nd half" };
 
 // Lower bound of a hit rate (Wilson score): a 5/5 never outranks a 9/10.
@@ -576,7 +576,7 @@ function evidenceLabel(side, metric) {
 
 // Each candidate = a family (category, period, market type, subject, over/under) and a line.
 // Legs: what is measured in the home sample and in the away sample.
-function buildTips() {
+function buildTips(minN = TIP_MIN_N) {
   const A = S.analysis;
   const out = [];
   for (const cat of ["goals", "corners", "cards"]) {
@@ -594,13 +594,14 @@ function buildTips() {
               const under = dir === "under";
               const mkH = { metric: subj.legs.home, line, under }, mkA = { metric: subj.legs.away, line, under };
               const h = evalSide(A.home, mkH, cat, period), a = evalSide(A.away, mkA, cat, period);
-              if (h.n < TIP_MIN_N || a.n < TIP_MIN_N || h.pct < TIP_MIN_RATE || a.pct < TIP_MIN_RATE) continue;
+              if (h.n < minN || a.n < minN || h.pct < TIP_MIN_RATE || a.pct < TIP_MIN_RATE) continue;
               const hits = h.hits + a.hits, n = h.n + a.n, pooled = (100 * hits) / n;
               if (pooled < TIP_MIN_POOLED) continue;
               out.push({ cat, period, fam, dir, line, subj: subj.key,
                 label: tipLabel(cat, fam, subj.name, line, under),
                 legs: [{ side: A.home, mk: mkH, res: h, label: evidenceLabel(A.home, mkH.metric) }, { side: A.away, mk: mkA, res: a, label: evidenceLabel(A.away, mkA.metric) }],
-                hits, n, pooled, score: wilsonLB(hits, n), strong: h.pct >= 80 && a.pct >= 80 && n >= 14 });
+                hits, n, pooled, score: wilsonLB(hits, n), strong: h.pct >= 80 && a.pct >= 80 && n >= 14,
+                key: [cat, period, fam, dir, subj.key].join("|"), small: h.n < TIP_MIN_N || a.n < TIP_MIN_N });
               break; // boldest passing line only
             }
           }
@@ -625,12 +626,15 @@ function comboRate(legs, sideKey) {
 function renderTips() {
   const A = S.analysis, L = S.loading;
   const tips = buildTips();
-  S.tips = tips;
+  const shortSides = [A.home, A.away].filter((x) => x.sample.length >= TIP_SMALL_N && x.sample.length < TIP_MIN_N);
+  const small = shortSides.length ? buildTips(TIP_SMALL_N).filter((t) => t.small && !tips.some((x) => x.key === t.key)).slice(0, 6) : [];
+  S.tips = [...tips, ...small];
   let html = "";
   if (L.total && L.done < L.total) html += `<div class="card progress">Loading match stats ${L.done}/${L.total} — corner & card tips appear as each match arrives<div class="bar"><i style="width:${(100 * L.done) / L.total}%"></i></div></div>`;
   html += `<div class="card tips-head"><div class="th-title">★ Best bets from the stats</div><p>Every tip below landed in at least ${TIP_MIN_RATE}% of <b>${esc(A.home.team.name)}'s home</b> games <b>and</b> ${TIP_MIN_RATE}% of <b>${esc(A.away.team.name)}'s away</b> games (min ${TIP_MIN_N} each). Ranked so bigger samples count for more. Tap a tip to see every match.</p></div>`;
   if (!tips.length) {
-    html += `<div class="card empty">${ICON.ball}<h3>No strong tips for this game</h3><p>No market reached ${TIP_MIN_RATE}%+ for both teams${Math.min(A.home.sample.length, A.away.sample.length) < TIP_MIN_N ? `, and one side has fewer than ${TIP_MIN_N} qualifying matches` : ""}. That's a useful signal too — the trends disagree.</p></div>`;
+    const few = [A.home, A.away].filter((x) => x.sample.length < TIP_MIN_N);
+    html += `<div class="card empty">${ICON.ball}<h3>No full-strength tips</h3><p>${few.length ? `${few.map((x) => `${esc(x.team.name)} have only ${x.sample.length} ${x.side} match${x.sample.length === 1 ? "" : "es"} in this competition`).join(" and ")} — full-strength tips need ${TIP_MIN_N}+.` : `No market reached ${TIP_MIN_RATE}%+ for both teams. That's a useful signal too — the trends disagree.`}</p></div>`;
   } else {
     html += `<div class="section-title"><h2>Top picks</h2><span class="aside">${tips.length} qualifying</span></div>`;
     tips.slice(0, 5).forEach((t, i) => { html += tipCard(t, i, i + 1); });
@@ -657,6 +661,13 @@ function renderTips() {
       list.forEach((t) => { html += tipCard(t, tips.indexOf(t), null); });
     }
   }
+  if (small.length) {
+    html += `<div class="section-title"><h2>Small-sample tips</h2><span class="aside">extra caution</span></div>
+    <div class="card note small" style="margin-top:0;border-color:rgba(255,184,77,.3)">${shortSides.map((x) => `<b>${esc(x.team.name)}</b> have only <b>${x.sample.length}</b> ${x.side} matches in this competition`).join(" and ")}, so these rest on very few games. One result can swing them a lot.</div>`;
+    small.forEach((t, j) => { html += tipCard(t, tips.length + j, null); });
+  } else if (!tips.length && [A.home, A.away].some((x) => x.sample.length < TIP_SMALL_N)) {
+    html += `<p class="muted small" style="margin:10px 2px 0">Small-sample tips need at least ${TIP_SMALL_N} matches per side.</p>`;
+  }
   html += `<div class="note card small"><b>Read this before betting.</b> Tips are <b>historical hit rates from these samples only</b> — not predictions or probabilities, and they don't know team news, injuries, motivation or the odds. A line that hit 80% can still lose. Check your bookmaker's settlement rules (especially for cards). 18+ · Only bet what you can afford to lose · BeGambleAware.org · GAMSTOP</div>`;
   html += `<div class="footer">Data: PitchAPI${A.fdEnabled ? " · football-data.org" : ""} · ${esc(A.rule)}</div>`;
   return html;
@@ -664,7 +675,7 @@ function renderTips() {
 
 function tipCard(t, idx, rank) {
   return `<button class="card tip" data-action="tip" data-i="${idx}">
-    <div class="tip-top">${rank ? `<span class="rank">${rank}</span>` : ""}<div class="tip-main"><div class="tip-label">${esc(t.label)}</div><div class="tip-sub">${PERIOD_SHORT[t.period]} · ${TAB_NAMES[t.cat]}${t.strong ? ` · <span class="ok-t">Strong trend</span>` : ""}</div></div>${ring(t.pooled, 48)}</div>
+    <div class="tip-top">${rank ? `<span class="rank">${rank}</span>` : ""}<div class="tip-main"><div class="tip-label">${esc(t.label)}</div><div class="tip-sub">${PERIOD_SHORT[t.period]} · ${TAB_NAMES[t.cat]}${t.small ? ` · <span class="warn-t">Small sample</span>` : t.strong ? ` · <span class="ok-t">Strong trend</span>` : ""}</div></div>${ring(t.pooled, 48)}</div>
     ${t.legs.map((l) => `<div class="evi"><span>${esc(l.label)}</span><i class="evbar"><i style="width:${l.res.pct}%;background:${colorOf(l.res)}"></i></i><b style="color:${colorOf(l.res)}">${l.res.hits}/${l.res.n}</b></div>`).join("")}
   </button>`;
 }
