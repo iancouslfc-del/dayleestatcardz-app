@@ -167,7 +167,7 @@ main { max-width: 760px; margin: 0 auto; padding: 14px 16px calc(var(--nav-h) + 
 .tabbar { display: grid; grid-template-columns: repeat(3, 1fr); background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 4px; gap: 4px; }
 .tabbar button { height: 38px; border-radius: 9px; font-weight: 700; font-size: 14px; color: var(--muted); display: flex; align-items: center; justify-content: center; gap: 6px; }
 .tabbar button.active { background: var(--green); color: #04110a; box-shadow: 0 4px 14px var(--green-glow); }
-.seg { display: grid; grid-template-columns: repeat(3, 1fr); margin-top: 8px; gap: 6px; }
+.seg { display: grid; grid-template-columns: 1fr 1fr 1fr 0.9fr; margin-top: 8px; gap: 6px; }
 .seg button { height: 32px; border-radius: 8px; font-size: 12.5px; font-weight: 600; color: var(--muted); border: 1px solid var(--line); background: var(--bg-2); }
 .seg button.active { color: var(--green); border-color: rgba(30,227,139,.5); background: rgba(30,227,139,.08); }
 
@@ -347,3 +347,29 @@ pre.raw { max-height: 320px; overflow: auto; font-size: 11px; background: #000; 
   .mkt-head, .mkt-row { grid-template-columns: 1fr 64px 64px 52px; }
   .pill .p { font-size: 17px; }
 }
+
+/* ---------- Tips ---------- */
+.seg .tips-btn { color: var(--amber); border-color: rgba(255,184,77,.35); background: rgba(255,184,77,.06); font-weight: 700; }
+.seg .tips-btn.active { color: #1a1204; background: var(--amber); border-color: var(--amber); box-shadow: 0 4px 14px rgba(255,184,77,.25); }
+.tips-head { margin-top: 12px; padding: 14px; background: linear-gradient(150deg, #1d1a10, #0f0e0a 70%); border-color: rgba(255,184,77,.25); }
+.tips-head .th-title { font-family: var(--num); font-size: 22px; font-weight: 700; color: var(--amber); }
+.tips-head p { margin: 6px 0 0; font-size: 12.5px; color: var(--muted); }
+.tip { width: 100%; text-align: left; padding: 12px 14px; margin-bottom: 8px; display: grid; gap: 7px; }
+.tip:active { background: var(--card-2); }
+.tip-top { display: flex; align-items: center; gap: 10px; }
+.tip .rank { width: 26px; height: 26px; border-radius: 8px; flex: none; display: grid; place-items: center; font-family: var(--num); font-weight: 700; font-size: 15px; color: #1a1204; background: var(--amber); }
+.tip-main { flex: 1; min-width: 0; }
+.tip-label { font-weight: 700; font-size: 15px; line-height: 1.2; }
+.tip-sub { font-size: 11.5px; color: var(--muted); margin-top: 2px; }
+.evi { display: grid; grid-template-columns: 1fr 70px 40px; gap: 8px; align-items: center; font-size: 12px; color: var(--muted); }
+.evi span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.evi b { text-align: right; font-family: var(--num); font-size: 15px; }
+.evbar { display: block; height: 6px; border-radius: 6px; background: var(--card-3); overflow: hidden; }
+.evbar i { display: block; height: 100%; border-radius: 6px; }
+.combo { padding: 14px; display: grid; gap: 8px; border-color: rgba(30,227,139,.2); }
+.combo-top { display: flex; align-items: center; gap: 12px; }
+.combo .lbl { font-weight: 700; font-size: 15px; }
+.combo .sub { font-size: 12px; color: var(--muted); }
+.combo .legs { margin: 2px 0 4px; padding-left: 20px; font-size: 13px; }
+.combo .legs li { margin-bottom: 3px; }
+.combo .evi { grid-template-columns: 1fr 50px; }

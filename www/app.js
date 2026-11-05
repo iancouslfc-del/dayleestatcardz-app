@@ -201,7 +201,7 @@ function evalSide(side, mk, tab, period) {
     const r = valuesFor(tab, period, m, d);
     if (!r.v) return { m, d, missing: r.missing, pending: r.pending };
     const x = metricOf(mk, r.v, t);
-    return { m, d, v: r.v, x, hit: x > mk.line, g: r.g, cards: r.cards };
+    return { m, d, v: r.v, x, hit: mk.under ? x < mk.line : x > mk.line, g: r.g, cards: r.cards };
   });
   const used = rows.filter((r) => r.v);
   const hits = used.filter((r) => r.hit).length;
@@ -412,8 +412,8 @@ function renderMatch() {
     <div class="r"><span class="ic">${ICON.plane}</span><div><b>${esc(f.away.name)}</b>Last <span class="n ${nA < 10 ? "low" : ""}">${nA}</span> AWAY matches${why(A.away)}</div></div>
   </div>
   <div class="tabs">
-    <div class="tabbar">${Object.keys(TAB_NAMES).map((t) => `<button class="${S.tab === t ? "active" : ""}" data-action="tab" data-tab="${t}">${TAB_NAMES[t]}</button>`).join("")}</div>
-    <div class="seg">${["H1", "H2", "FT"].map((p) => `<button class="${S.period === p ? "active" : ""}" data-action="period" data-period="${p}">${PERIODS[p]}</button>`).join("")}</div>
+    <div class="tabbar">${Object.keys(TAB_NAMES).map((t) => `<button class="${S.tab === t && S.period !== "TIPS" ? "active" : ""}" data-action="tab" data-tab="${t}">${TAB_NAMES[t]}</button>`).join("")}</div>
+    <div class="seg">${["H1", "H2", "FT"].map((p) => `<button class="${S.period === p ? "active" : ""}" data-action="period" data-period="${p}">${PERIODS[p]}</button>`).join("")}<button class="tips-btn ${S.period === "TIPS" ? "active" : ""}" data-action="period" data-period="TIPS">★ Tips</button></div>
   </div>
   <div id="mBody"></div>`;
   renderMatchBody();
@@ -421,6 +421,7 @@ function renderMatch() {
 
 function renderMatchBody() {
   const el = $("#mBody"); if (!el || !S.analysis) return;
+  if (S.period === "TIPS") { el.innerHTML = renderTips(); return; }
   const A = S.analysis, tab = S.tab, period = S.period;
   const rows = MARKETS[tab].filter((m) => !m.group).map((mk) => ({ mk, h: evalSide(A.home, mk, tab, period), a: evalSide(A.away, mk, tab, period) }));
   const L = S.loading;
@@ -501,24 +502,179 @@ function cardRulesNote(collapsible) {
 // ---------- Transparency sheet ----------
 function openMarket(id) {
   const A = S.analysis; if (!A) return;
-  const tab = S.tab, period = S.period;
-  const mk = MARKETS[tab].find((m) => m.id === id); if (!mk) return;
-  const sides = [A.home, A.away];
-  let html = `<div class="grab"><i></i><div class="sheet-title"><div style="flex:1"><h3>${esc(mk.label)}</h3><p>${PERIODS[period]} · ${TAB_NAMES[tab]} · line ${mk.line}</p></div><button class="icon-btn" data-action="closeSheet" aria-label="Close">✕</button></div></div>`;
-  for (const side of sides) {
+  const mk = MARKETS[S.tab].find((m) => m.id === id); if (!mk) return;
+  openSheet({ title: mk.label, sub: `${PERIODS[S.period]} · ${TAB_NAMES[S.tab]} · line ${mk.line}`, tab: S.tab, period: S.period,
+    sides: [{ side: A.home, mk }, { side: A.away, mk }] });
+}
+
+// def = { title, sub, tab, period, sides: [{ side, mk, label? }] }
+function openSheet(def) {
+  const { tab, period } = def;
+  let html = `<div class="grab"><i></i><div class="sheet-title"><div style="flex:1"><h3>${esc(def.title)}</h3><p>${esc(def.sub)}</p></div><button class="icon-btn" data-action="closeSheet" aria-label="Close">✕</button></div></div>`;
+  if (def.note) html += `<p class="muted small" style="margin:4px 0 0">${def.note}</p>`;
+  for (const { side, mk, label } of def.sides) {
     const res = evalSide(side, mk, tab, period);
     const t = side.side === "home" ? 0 : 1;
-    html += `<div class="card side-block"><div class="side-head">${crest(side.team)}<div class="t"><b>${esc(side.team.name)}</b><span>Last ${side.sample.length} ${side.side.toUpperCase()} matches${side.sample.length < 10 ? " (only " + side.sample.length + " available)" : ""}</span></div>
+    html += `<div class="card side-block"><div class="side-head">${crest(side.team)}<div class="t"><b>${esc(label || side.team.name)}</b><span>Last ${side.sample.length} ${side.side.toUpperCase()} matches${side.sample.length < 10 ? " (only " + side.sample.length + " available)" : ""}</span></div>
       <div class="big" style="color:${colorOf(res)}">${fmtPct(res.pct)}<small>${res.hits}/${res.n}${res.n < res.sampleSize ? ` · ${res.sampleSize - res.n} excluded` : ""}</small></div></div>
-      <div style="margin-top:10px">${barChart(chartItemsFor(res), mk.line, { h: 140, aria: mk.label })}</div>`;
+      <div style="margin-top:10px">${barChart(chartItemsFor(res), mk.line, { h: 140, aria: def.title })}</div>`;
     for (const r of res.rows) html += matchRow(r, t, tab, period, mk);
     if (side.sample.length < 10) html += `<p class="muted small" style="margin:10px 0 0">Fewer than 10 ${side.side} matches in this competition. ${esc(seasonsNote(side))}</p>`;
     html += `</div>`;
   }
-  html += `<p class="dim small" style="margin-top:12px">Every row above is a real completed match. ✓ = market won, ✗ = lost, – = excluded (no data, never counted as a loss).</p>`;
+  html += `<p class="dim small" style="margin-top:12px">Every row above is a real completed match. ✓ = won, ✗ = lost, – = excluded (no data, never counted as a loss).</p>`;
   const sh = $("#sheet"); sh.innerHTML = html; sh.scrollTop = 0;
   sh.classList.add("open"); $("#scrim").classList.add("open");
 }
+
+// ---------- Tips: best bets from the real samples ----------
+// Lines scanned per category/period. "over" picks the HIGHEST line that passes, "under" the LOWEST,
+// so each family gives its boldest line that the evidence still supports.
+const LADDER = {
+  goals: {
+    total: { over: { FT: [1.5, 2.5, 3.5, 4.5], H1: [0.5, 1.5, 2.5], H2: [0.5, 1.5, 2.5] }, under: { FT: [1.5, 2.5, 3.5], H1: [0.5, 1.5], H2: [0.5, 1.5] } },
+    team: { over: { FT: [0.5, 1.5, 2.5], H1: [0.5, 1.5], H2: [0.5, 1.5] }, under: { FT: [0.5, 1.5], H1: [0.5], H2: [0.5] } },
+    min: { over: { FT: [0.5], H1: [0.5], H2: [0.5] }, under: { FT: [0.5], H1: [0.5], H2: [0.5] } },
+  },
+  corners: {
+    total: { over: { FT: [6.5, 7.5, 8.5, 9.5, 10.5, 11.5, 12.5], H1: [2.5, 3.5, 4.5, 5.5, 6.5], H2: [2.5, 3.5, 4.5, 5.5, 6.5] }, under: { FT: [7.5, 8.5, 9.5, 10.5, 11.5], H1: [3.5, 4.5, 5.5], H2: [3.5, 4.5, 5.5] } },
+    team: { over: { FT: [1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.5], H1: [0.5, 1.5, 2.5, 3.5], H2: [0.5, 1.5, 2.5, 3.5] }, under: { FT: [2.5, 3.5, 4.5, 5.5, 6.5], H1: [0.5, 1.5, 2.5], H2: [0.5, 1.5, 2.5] } },
+    min: { over: { FT: [0.5, 1.5, 2.5, 3.5], H1: [0.5, 1.5], H2: [0.5, 1.5] } },
+  },
+  cards: {
+    total: { over: { FT: [1.5, 2.5, 3.5, 4.5, 5.5, 6.5], H1: [0.5, 1.5, 2.5], H2: [0.5, 1.5, 2.5, 3.5] }, under: { FT: [2.5, 3.5, 4.5, 5.5], H1: [0.5, 1.5, 2.5], H2: [0.5, 1.5, 2.5] } },
+    team: { over: { FT: [0.5, 1.5, 2.5], H1: [0.5, 1.5], H2: [0.5, 1.5] }, under: { FT: [0.5, 1.5], H1: [0.5], H2: [0.5] } },
+    min: { over: { FT: [0.5], H1: [0.5], H2: [0.5] } },
+  },
+};
+const TIP_MIN_N = 5, TIP_MIN_RATE = 70, TIP_MIN_POOLED = 75;
+const PERIOD_SHORT = { FT: "Full match", H1: "1st half", H2: "2nd half" };
+
+// Lower bound of a hit rate (Wilson score): a 5/5 never outranks a 9/10.
+function wilsonLB(h, n, z = 1.28) {
+  if (!n) return 0;
+  const p = h / n, z2 = z * z;
+  return (p + z2 / (2 * n) - z * Math.sqrt((p * (1 - p)) / n + z2 / (4 * n * n))) / (1 + z2 / n);
+}
+
+function tipLabel(cat, fam, subj, line, under) {
+  const unit = UNIT[cat];
+  if (fam === "total") return `${under ? "Under" : "Over"} ${line} ${unit}`;
+  if (fam === "min") {
+    if (cat === "goals") return under ? "Both teams to score — No" : "Both teams to score";
+    return cat === "cards" ? "Both teams to be carded" : `Both teams ${line + 0.5}+ ${unit}`;
+  }
+  if (cat === "goals" && line === 0.5) return under ? `${subj} not to score` : `${subj} to score`;
+  return `${subj} ${under ? "under" : "over"} ${line} ${unit}`;
+}
+function evidenceLabel(side, metric) {
+  const nm = side.team.name, where = side.side;
+  if (metric === "team") return `${nm} ${where}`;
+  if (metric === "opp") return `${nm}'s ${where} opponents`;
+  return `${nm} ${where} games`;
+}
+
+// Each candidate = a family (category, period, market type, subject, over/under) and a line.
+// Legs: what is measured in the home sample and in the away sample.
+function buildTips() {
+  const A = S.analysis;
+  const out = [];
+  for (const cat of ["goals", "corners", "cards"]) {
+    for (const period of ["FT", "H1", "H2"]) {
+      for (const fam of ["total", "min", "team"]) {
+        const subjects = fam === "team"
+          ? [{ key: "home", name: A.home.team.name, legs: { home: "team", away: "opp" } }, { key: "away", name: A.away.team.name, legs: { home: "opp", away: "team" } }]
+          : [{ key: "match", name: "", legs: { home: fam, away: fam } }];
+        for (const dir of ["over", "under"]) {
+          const lines = LADDER[cat][fam] && LADDER[cat][fam][dir] && LADDER[cat][fam][dir][period];
+          if (!lines) continue;
+          const ordered = dir === "over" ? [...lines].reverse() : lines; // boldest first
+          for (const subj of subjects) {
+            for (const line of ordered) {
+              const under = dir === "under";
+              const mkH = { metric: subj.legs.home, line, under }, mkA = { metric: subj.legs.away, line, under };
+              const h = evalSide(A.home, mkH, cat, period), a = evalSide(A.away, mkA, cat, period);
+              if (h.n < TIP_MIN_N || a.n < TIP_MIN_N || h.pct < TIP_MIN_RATE || a.pct < TIP_MIN_RATE) continue;
+              const hits = h.hits + a.hits, n = h.n + a.n, pooled = (100 * hits) / n;
+              if (pooled < TIP_MIN_POOLED) continue;
+              out.push({ cat, period, fam, dir, line, subj: subj.key,
+                label: tipLabel(cat, fam, subj.name, line, under),
+                legs: [{ side: A.home, mk: mkH, res: h, label: evidenceLabel(A.home, mkH.metric) }, { side: A.away, mk: mkA, res: a, label: evidenceLabel(A.away, mkA.metric) }],
+                hits, n, pooled, score: wilsonLB(hits, n), strong: h.pct >= 80 && a.pct >= 80 && n >= 14 });
+              break; // boldest passing line only
+            }
+          }
+        }
+      }
+    }
+  }
+  return out.sort((x, y) => y.score - x.score || Math.min(y.legs[0].res.pct, y.legs[1].res.pct) - Math.min(x.legs[0].res.pct, x.legs[1].res.pct));
+}
+
+// All legs together in the same match, per sample.
+function comboRate(legs, sideKey) {
+  const A = S.analysis, side = A[sideKey];
+  const per = legs.map((t) => evalSide(side, t.legs[sideKey === "home" ? 0 : 1].mk, t.cat, t.period));
+  let n = 0, hits = 0;
+  side.sample.forEach((_, i) => {
+    if (per.every((r) => r.rows[i] && r.rows[i].v)) { n++; if (per.every((r) => r.rows[i].hit)) hits++; }
+  });
+  return { n, hits, pct: n ? (100 * hits) / n : null };
+}
+
+function renderTips() {
+  const A = S.analysis, L = S.loading;
+  const tips = buildTips();
+  S.tips = tips;
+  let html = "";
+  if (L.total && L.done < L.total) html += `<div class="card progress">Loading match stats ${L.done}/${L.total} — corner & card tips appear as each match arrives<div class="bar"><i style="width:${(100 * L.done) / L.total}%"></i></div></div>`;
+  html += `<div class="card tips-head"><div class="th-title">★ Best bets from the stats</div><p>Every tip below landed in at least ${TIP_MIN_RATE}% of <b>${esc(A.home.team.name)}'s home</b> games <b>and</b> ${TIP_MIN_RATE}% of <b>${esc(A.away.team.name)}'s away</b> games (min ${TIP_MIN_N} each). Ranked so bigger samples count for more. Tap a tip to see every match.</p></div>`;
+  if (!tips.length) {
+    html += `<div class="card empty">${ICON.ball}<h3>No strong tips for this game</h3><p>No market reached ${TIP_MIN_RATE}%+ for both teams${Math.min(A.home.sample.length, A.away.sample.length) < TIP_MIN_N ? `, and one side has fewer than ${TIP_MIN_N} qualifying matches` : ""}. That's a useful signal too — the trends disagree.</p></div>`;
+  } else {
+    html += `<div class="section-title"><h2>Top picks</h2><span class="aside">${tips.length} qualifying</span></div>`;
+    tips.slice(0, 5).forEach((t, i) => { html += tipCard(t, i, i + 1); });
+    // Combo idea: best tip from each category, if they also landed together often enough
+    const legs = []; for (const cat of ["goals", "corners", "cards"]) { const t = tips.find((x) => x.cat === cat); if (t) legs.push(t); }
+    if (legs.length >= 2) {
+      const ch = comboRate(legs, "home"), ca = comboRate(legs, "away");
+      const n = ch.n + ca.n, pooled = n ? (100 * (ch.hits + ca.hits)) / n : null;
+      if (ch.n >= TIP_MIN_N && ca.n >= TIP_MIN_N && pooled !== null) {
+        html += `<div class="section-title"><h2>Combo idea</h2><span class="aside">all legs in the same match</span></div>
+        <div class="card combo"><div class="combo-top">${ring(pooled)}<div style="flex:1"><div class="lbl">${legs.length}-leg combo</div><div class="sub">All legs landed together in ${ch.hits + ca.hits} of ${n} games</div></div></div>
+        <ol class="legs">${legs.map((t) => `<li><b>${esc(t.label)}</b> <span class="dim">· ${PERIOD_SHORT[t.period]}</span></li>`).join("")}</ol>
+        <div class="evi"><span>${esc(A.home.team.name)} home</span><b style="color:${colorOf({ pct: ch.pct, n: ch.n })}">${ch.hits}/${ch.n}</b></div>
+        <div class="evi"><span>${esc(A.away.team.name)} away</span><b style="color:${colorOf({ pct: ca.pct, n: ca.n })}">${ca.hits}/${ca.n}</b></div>
+        ${pooled < 60 ? `<p class="warn-t small" style="margin:8px 0 0;font-weight:600">The legs rarely landed together — singles look stronger than the combo here.</p>` : ""}</div>`;
+      }
+    }
+    // More, grouped by category
+    const rest = tips.slice(5);
+    for (const cat of ["goals", "corners", "cards"]) {
+      const list = rest.filter((t) => t.cat === cat).slice(0, 4);
+      if (!list.length) continue;
+      html += `<div class="section-title"><h2>More ${TAB_NAMES[cat].toLowerCase()} tips</h2></div>`;
+      list.forEach((t) => { html += tipCard(t, tips.indexOf(t), null); });
+    }
+  }
+  html += `<div class="note card small"><b>Read this before betting.</b> Tips are <b>historical hit rates from these samples only</b> — not predictions or probabilities, and they don't know team news, injuries, motivation or the odds. A line that hit 80% can still lose. Check your bookmaker's settlement rules (especially for cards). 18+ · Only bet what you can afford to lose · BeGambleAware.org · GAMSTOP</div>`;
+  html += `<div class="footer">Data: PitchAPI${A.fdEnabled ? " · football-data.org" : ""} · ${esc(A.rule)}</div>`;
+  return html;
+}
+
+function tipCard(t, idx, rank) {
+  return `<button class="card tip" data-action="tip" data-i="${idx}">
+    <div class="tip-top">${rank ? `<span class="rank">${rank}</span>` : ""}<div class="tip-main"><div class="tip-label">${esc(t.label)}</div><div class="tip-sub">${PERIOD_SHORT[t.period]} · ${TAB_NAMES[t.cat]}${t.strong ? ` · <span class="ok-t">Strong trend</span>` : ""}</div></div>${ring(t.pooled, 48)}</div>
+    ${t.legs.map((l) => `<div class="evi"><span>${esc(l.label)}</span><i class="evbar"><i style="width:${l.res.pct}%;background:${colorOf(l.res)}"></i></i><b style="color:${colorOf(l.res)}">${l.res.hits}/${l.res.n}</b></div>`).join("")}
+  </button>`;
+}
+
+function openTip(i) {
+  const t = S.tips && S.tips[i]; if (!t) return;
+  openSheet({ title: t.label, sub: `${PERIOD_SHORT[t.period]} · ${TAB_NAMES[t.cat]} · ${t.dir} ${t.line} · ${t.hits}/${t.n} combined (${Math.round(t.pooled)}%)`,
+    tab: t.cat, period: t.period, sides: t.legs.map((l) => ({ side: l.side, mk: l.mk, label: l.label })) });
+}
+
 function closeSheet() { $("#sheet").classList.remove("open"); $("#scrim").classList.remove("open"); }
 
 function matchRow(r, t, tab, period, mk) {
@@ -680,8 +836,19 @@ document.addEventListener("click", async (ev) => {
     $("#fxWrap").innerHTML = skeleton(5);
     try { const list = await loadFixtures(S.comp); $("#fxWrap").innerHTML = fixtureList(list, false); $("#hsFix") && ($("#hsFix").textContent = list.length); }
     catch (e) { $("#fxWrap").innerHTML = errorBox(e, "reload"); }
-  } else if (a === "tab") { S.tab = b.dataset.tab; store.set("tab", S.tab); document.querySelectorAll(".tabbar button").forEach((x) => x.classList.toggle("active", x.dataset.tab === S.tab)); renderMatchBody(); }
-  else if (a === "period") { S.period = b.dataset.period; store.set("period", S.period); document.querySelectorAll(".seg button").forEach((x) => x.classList.toggle("active", x.dataset.period === S.period)); renderMatchBody(); }
+  } else if (a === "tab") {
+    S.tab = b.dataset.tab; store.set("tab", S.tab);
+    if (S.period === "TIPS") { S.period = S.lastPeriod || "FT"; store.set("period", S.period); }
+    document.querySelectorAll(".tabbar button").forEach((x) => x.classList.toggle("active", x.dataset.tab === S.tab));
+    document.querySelectorAll(".seg button").forEach((x) => x.classList.toggle("active", x.dataset.period === S.period));
+    renderMatchBody();
+  } else if (a === "period") {
+    S.period = b.dataset.period; store.set("period", S.period);
+    if (S.period !== "TIPS") S.lastPeriod = S.period;
+    document.querySelectorAll(".seg button").forEach((x) => x.classList.toggle("active", x.dataset.period === S.period));
+    document.querySelectorAll(".tabbar button").forEach((x) => x.classList.toggle("active", S.period !== "TIPS" && x.dataset.tab === S.tab));
+    renderMatchBody();
+  } else if (a === "tip") openTip(Number(b.dataset.i));
   else if (a === "hero") { S.hero[S.tab] = b.dataset.id; renderMatchBody(); }
   else if (a === "market") openMarket(b.dataset.id);
   else if (a === "closeSheet") closeSheet();
