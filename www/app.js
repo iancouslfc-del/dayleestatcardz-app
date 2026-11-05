@@ -358,11 +358,12 @@ async function viewHome() {
     return;
   }
   root.innerHTML = `<div class="card hero"><h1>Last 10 home.<br>Last 10 away.</h1><p>Real hit rates for goals, corners & cards — tap any % to see every match behind it.</p>
-    <div class="hero-stats" id="heroStats"><div class="hero-stat"><div class="n">6</div><div class="l">Leagues</div></div><div class="hero-stat"><div class="n" id="hsFix">—</div><div class="l">Fixtures (21 days)</div></div><div class="hero-stat"><div class="n">0</div><div class="l">Made-up stats</div></div></div></div>
+    <div class="hero-stats" id="heroStats"><div class="hero-stat"><div class="n" id="hsLeagues">—</div><div class="l">Leagues</div></div><div class="hero-stat"><div class="n" id="hsFix">—</div><div class="l">Fixtures (21 days)</div></div><div class="hero-stat"><div class="n">0</div><div class="l">Made-up stats</div></div></div></div>
     <div id="chipsWrap" style="margin-top:14px">${skeleton(1, 40)}</div><div id="fxWrap" style="margin-top:4px">${skeleton(5)}</div>`;
   try {
     await loadComps();
     $("#chipsWrap").innerHTML = compChips(S.comp);
+    if ($("#hsLeagues")) $("#hsLeagues").textContent = S.comps.length;
   } catch (e) { $("#chipsWrap").innerHTML = ""; $("#fxWrap").innerHTML = errorBox(e, "reload"); return; }
   try {
     const list = await loadFixtures(S.comp);
