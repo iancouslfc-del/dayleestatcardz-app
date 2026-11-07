@@ -6,6 +6,9 @@ Football stats app: **home team's last 10 HOME matches vs away team's last 10 AW
 Every change pushed to `main` is built automatically by GitHub Actions (`.github/workflows/build-apk.yml`).
 The newest APK is always at **Releases → latest → DayleeStatCardz.apk**.
 
+## Player bets
+**Players** tab (bottom bar) ranks the strongest player lines across a league's next 7 days of fixtures; each match also has a **Players** tab. Built from PitchAPI's per-match player stat lines (`/v1/matches/{id}/players`) and card events. Only 45+ minute appearances count; a line shows at 70%+ (5+ games, or 3–4 flagged "Small sample"). Default sample follows the home/away rule; "All games" uses the last 10 at any venue. No odds are shown.
+
 ## Connecting data servers
 Open the app → **Servers** tab → paste your key → **Connect**. Keys are stored only on the phone.
 

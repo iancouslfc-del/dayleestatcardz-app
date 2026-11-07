@@ -56,7 +56,7 @@ const MARKETS = {
   ],
 };
 const PERIODS = { H1: "1st Half", H2: "2nd Half", FT: "Full Match" };
-const TAB_NAMES = { goals: "Goals", corners: "Corners", cards: "Cards" };
+const TAB_NAMES = { goals: "Goals", corners: "Corners", cards: "Cards", players: "Players" };
 const HERO_DEFAULT = { goals: "o25", corners: "c9", cards: "k35" };
 const UNIT = { goals: "goals", corners: "corners", cards: "cards" };
 
@@ -414,7 +414,7 @@ function renderMatch() {
   </div>
   <div class="tabs">
     <div class="tabbar">${Object.keys(TAB_NAMES).map((t) => `<button class="${S.tab === t && S.period !== "TIPS" ? "active" : ""}" data-action="tab" data-tab="${t}">${TAB_NAMES[t]}</button>`).join("")}</div>
-    <div class="seg">${["H1", "H2", "FT"].map((p) => `<button class="${S.period === p ? "active" : ""}" data-action="period" data-period="${p}">${PERIODS[p]}</button>`).join("")}<button class="tips-btn ${S.period === "TIPS" ? "active" : ""}" data-action="period" data-period="TIPS">★ Tips</button></div>
+    ${S.tab === "players" ? plChipRow("plChipM") : `<div class="seg">${["H1", "H2", "FT"].map((p) => `<button class="${S.period === p ? "active" : ""}" data-action="period" data-period="${p}">${PERIODS[p]}</button>`).join("")}<button class="tips-btn ${S.period === "TIPS" ? "active" : ""}" data-action="period" data-period="TIPS">★ Tips</button></div>`}
   </div>
   <div id="mBody"></div>`;
   renderMatchBody();
@@ -422,6 +422,7 @@ function renderMatch() {
 
 function renderMatchBody() {
   const el = $("#mBody"); if (!el || !S.analysis) return;
+  if (S.tab === "players") { el.innerHTML = renderPlayersTab(); return; }
   if (S.period === "TIPS") { el.innerHTML = renderTips(); return; }
   const A = S.analysis, tab = S.tab, period = S.period;
   const rows = MARKETS[tab].filter((m) => !m.group).map((mk) => ({ mk, h: evalSide(A.home, mk, tab, period), a: evalSide(A.away, mk, tab, period) }));
@@ -746,7 +747,7 @@ function renderSearch() {
 async function viewFavs() {
   setNav("favourites");
   const teams = Object.values(S.favTeams);
-  let html = `<div class="section-title"><h2>Favourite leagues</h2><span class="aside">Tap to pin</span></div>`;
+  let html = favPropsSection() + `<div class="section-title"><h2>Favourite leagues</h2><span class="aside">Tap to pin</span></div>`;
   app().innerHTML = html + skeleton(1, 40) + skeleton(3);
   try { await loadComps(); } catch (e) { app().innerHTML = errorBox(e, "reload"); return; }
   html += `<div class="chips">${S.comps.map((c) => `<button class="chip ${S.favComps.includes(c.code) ? "active" : ""}" data-action="favComp" data-code="${c.code}">${compLogo(c)}${esc(c.name)}</button>`).join("")}</div>`;
@@ -834,6 +835,7 @@ function route() {
   window.scrollTo(0, 0);
   if (parts[0] === "match" && parts[1] && parts[2]) { S.route = "match"; return viewMatch(parts[1], parts[2]); }
   if (parts[0] === "search") { S.route = "search"; return viewSearch(); }
+  if (parts[0] === "players") { S.route = "players"; return viewPlayers(); }
   if (parts[0] === "favourites") { S.route = "favourites"; return viewFavs(); }
   if (parts[0] === "sources") { S.route = "sources"; return viewSources(); }
   S.route = "home"; return viewHome();
@@ -849,8 +851,10 @@ document.addEventListener("click", async (ev) => {
     try { const list = await loadFixtures(S.comp); $("#fxWrap").innerHTML = fixtureList(list, false); $("#hsFix") && ($("#hsFix").textContent = list.length); }
     catch (e) { $("#fxWrap").innerHTML = errorBox(e, "reload"); }
   } else if (a === "tab") {
+    const wasPlayers = S.tab === "players";
     S.tab = b.dataset.tab; store.set("tab", S.tab);
-    if (S.period === "TIPS") { S.period = S.lastPeriod || "FT"; store.set("period", S.period); }
+    if (S.period === "TIPS" && S.tab !== "players") { S.period = S.lastPeriod || "FT"; store.set("period", S.period); }
+    if (wasPlayers || S.tab === "players") { const y = window.scrollY; renderMatch(); window.scrollTo(0, y); return; }
     document.querySelectorAll(".tabbar button").forEach((x) => x.classList.toggle("active", x.dataset.tab === S.tab));
     document.querySelectorAll(".seg button").forEach((x) => x.classList.toggle("active", x.dataset.period === S.period));
     renderMatchBody();
@@ -880,7 +884,8 @@ document.addEventListener("click", async (ev) => {
       keys[id] = v; toast("Connecting…");
     } else { delete keys[id]; toast("Disconnected"); }
     store.set("keys", keys);
-    window.Engine.refresh(); S.comps = null; S.fixtures = {}; S.analysis = null;
+    window.Engine.refresh();
+  if (typeof PL !== "undefined") { PL.scans = {}; PL.lineups.clear(); PL.err.clear(); } S.comps = null; S.fixtures = {}; S.analysis = null;
     viewSources();
   }
   else if (a === "clearCache") {
@@ -909,6 +914,6 @@ $("#refreshBtn").addEventListener("click", async () => {
   await route(); b.classList.remove("spin"); toast("Data refreshed");
 });
 window.addEventListener("hashchange", route);
-route();
+document.addEventListener("DOMContentLoaded", route); // runs once every script (incl. players.js) has loaded
 
 // No service worker needed: inside the Android app everything is bundled.

@@ -69,6 +69,7 @@ function pruneStore() { for (const k of LS.keys()) if (k.startsWith("dsc:c:")) L
 // Refresh: forget everything that can change (current season, fixtures, leagues).
 function refresh() {
   mem.clear();
+  // finished matches' player lines (dsc:p:) never change, so they are kept
   for (const k of LS.keys()) if (k.startsWith("dsc:c:") && !k.includes(":old")) LS.del(k);
 }
 
@@ -247,7 +248,7 @@ async function sampleFor(comp, team, side, beforeIso, keys) {
         if (alt.length) done = alt;
       } catch {}
     }
-    const mine = done.filter((m) => Date.parse(m.time) < before && sameTeam(side === "home" ? m.home : m.away, team, key));
+    const mine = done.filter((m) => Date.parse(m.time) < before && (side === "any" ? (sameTeam(m.home, team, key) || sameTeam(m.away, team, key)) : sameTeam(side === "home" ? m.home : m.away, team, key)));
     let added = 0;
     for (const m of mine) if (!out.find((x) => x.id === m.id)) { out.push(m); added++; }
     scanned.push({ season: s || "current", found: added, listed: done.length });
@@ -326,9 +327,11 @@ async function analysis(code, matchId, keys) {
   const fx = slimMatch(raw, code);
   if (!fx.home || !fx.away || !fx.time) throw new ApiError(502, "BAD_MATCH", "Provider returned an incomplete fixture.");
   // Only matches played BEFORE this fixture's kick-off are eligible.
-  const [h, a] = await Promise.all([
+  const [h, a, hAll, aAll] = await Promise.all([
     sampleFor(comp, fx.home, "home", fx.time, keys),
     sampleFor(comp, fx.away, "away", fx.time, keys),
+    sampleFor(comp, fx.home, "any", fx.time, keys),
+    sampleFor(comp, fx.away, "any", fx.time, keys),
   ]);
   let fdList = null, fdError = null;
   try { fdList = await fdMatches(comp.fd, keys); } catch (e) { fdError = e.message; }
@@ -338,8 +341,8 @@ async function analysis(code, matchId, keys) {
     rule: `Home side: last ${SAMPLE_SIZE} completed HOME matches in ${comp.name}. Away side: last ${SAMPLE_SIZE} completed AWAY matches in ${comp.name}. Only matches before kick-off.`,
     competition: { code: comp.code, name: comp.name, logo: comp.logo },
     fixture: { ...fx, referee: raw.referee || null, stadium: raw.stadium || null },
-    home: { team: fx.home, side: "home", seasonsScanned: h.seasonsScanned, sample: h.matches.map(tag) },
-    away: { team: fx.away, side: "away", seasonsScanned: a.seasonsScanned, sample: a.matches.map(tag) },
+    home: { team: fx.home, side: "home", seasonsScanned: h.seasonsScanned, sample: h.matches.map(tag), allSample: hAll.matches },
+    away: { team: fx.away, side: "away", seasonsScanned: a.seasonsScanned, sample: a.matches.map(tag), allSample: aAll.matches },
     fdEnabled: !!keys.fd, fdError,
   };
 }
@@ -457,6 +460,136 @@ async function matchDetail(id, keys) {
 }
 
 // ---------------------------------------------------------------------
+//  7b. Player stat lines for one match (/players + card events)
+//      Labels are matched loosely because the provider keys stats by
+//      display label; anything not found is stored as null (= no data).
+// ---------------------------------------------------------------------
+const PSTAT = {
+  min:     { keys: ["minutes_played", "minutesplayed"], labels: ["minutes played", "minutes"] },
+  goals:   { keys: ["goals"], labels: ["goals"] },
+  assists: { keys: ["assists", "goal_assist"], labels: ["assists"] },
+  shots:   { keys: ["total_shots", "shots", "totalshots"], labels: ["total shots", "shots"] },
+  sot:     { keys: ["shots_on_target", "shotsontarget", "shot_accuracy", "shotaccuracy"], labels: ["shots on target", "shot accuracy", "on target"] },
+  tackles: { keys: ["tackles", "total_tackles", "tackles_won", "tackleswon", "matchstats_headers_tackles"], labels: ["tackles", "tackles won", "total tackles"] },
+  fouls:   { keys: ["fouls", "fouls_committed", "foulscommitted"], labels: ["fouls committed", "fouls"] },
+  fouled:  { keys: ["was_fouled", "wasfouled", "fouls_won", "foulswon"], labels: ["was fouled", "fouls won", "fouled"] },
+  saves:   { keys: ["saves", "goalkeeper_saves"], labels: ["saves"] },
+};
+const nk = (s) => norm(s).replace(/ /g, "_");
+
+function flattenPlayerStats(groupsIn) {
+  const byKey = new Map(), byLabel = new Map(), groups = new Set();
+  const add = (label, entry) => {
+    if (!entry) return;
+    const st = entry.stat || entry;
+    const rec = { label: String(label || entry.title || entry.key || ""), type: st.type, value: st.value, total: st.total };
+    if (entry.key) byKey.set(nk(entry.key), rec);
+    if (rec.label) byLabel.set(norm(rec.label), rec);
+  };
+  for (const g of Array.isArray(groupsIn) ? groupsIn : []) {
+    if (g && g.key) groups.add(nk(g.key));
+    const st = g && g.stats;
+    if (Array.isArray(st)) st.forEach((e) => add(e.title || e.key, e));
+    else if (st && typeof st === "object") for (const [label, e] of Object.entries(st)) add(label, e);
+  }
+  return { byKey, byLabel, groups };
+}
+
+function pickStat(flat, def) {
+  for (const k of def.keys) { const r = flat.byKey.get(nk(k)); if (r) return r; }
+  for (const l of def.labels) { const r = flat.byLabel.get(norm(l)); if (r) return r; }
+  return null;
+}
+
+function slimPlayerLine(p) {
+  const flat = flattenPlayerStats(p.stats);
+  const out = {}, lbl = {};
+  for (const [k, def] of Object.entries(PSTAT)) {
+    const r = pickStat(flat, def);
+    if (!r) { out[k] = null; continue; }
+    const v = num(r.value);
+    out[k] = isInt(v) ? v : (Number.isFinite(v) ? v : null);
+    if (k === "sot" && r.total !== undefined && r.total !== null) out._shotsTotal = num(r.total);
+    if (k === "tackles" && /won/i.test(r.label)) lbl.tackles = "Tackles won";
+  }
+  if (out.shots === null && isInt(out._shotsTotal)) out.shots = out._shotsTotal;
+  delete out._shotsTotal;
+  return { s: out, lbl, groups: [...flat.groups] };
+}
+
+function evPlayerId(e) { return e.player_id || e.playerId || (e.player && (e.player.id || e.player.player_id)) || null; }
+
+async function matchPlayers(id, keys) {
+  const saved = LS.get("dsc:p:" + id);
+  if (saved && saved.v === 2) return saved;
+  const [m, pl, ev] = await Promise.allSettled([
+    cached(`pitch:match:${id}`, 600, () => pitch(`/v1/matches/${id}`, keys)),
+    pitch(`/v1/matches/${id}/players`, keys),
+    pitch(`/v1/matches/${id}/events`, keys),
+  ]);
+  if (m.status === "rejected") throw m.reason;
+  const match = m.value;
+  const out = { v: 2, id, status: String(match.status || "").toLowerCase(), homeId: match.home_team?.id, awayId: match.away_team?.id, players: [], cardsOk: false, flags: [], at: new Date().toISOString() };
+  if (pl.status === "rejected") {
+    out.flags.push(pl.reason?.code === "RESOURCE_NOT_FOUND" ? "No player stats published for this match" : "Player stats request failed: " + pl.reason?.message);
+  } else {
+    const d = pl.value;
+    const list = Array.isArray(d) ? d : Array.isArray(d?.players) ? d.players : Array.isArray(d?.data) ? d.data : [];
+    for (const p of list) {
+      const pid = p.player?.id || p.player_id || p.id; if (!pid) continue;
+      const { s, lbl, groups } = slimPlayerLine(p);
+      out.players.push({ id: pid, n: p.player?.name || p.name || "Unknown", img: p.player?.image_url || null, t: p.team_id || null, pos: p.player?.position_id ?? p.position_id ?? null, s, lbl, g: groups });
+    }
+    // A stat the provider tracks in this match but leaves out of a player's published group is counted as 0
+    // and flagged (zf) so the app can show it. If the whole group is missing, it stays "no data".
+    const ZERO_GROUPS = { goals: ["top_stats"], assists: ["top_stats"], shots: ["top_stats", "attack"], sot: ["top_stats", "attack"], tackles: ["defense", "defence"], fouls: ["duels", "defense", "defence"], fouled: ["duels"] };
+    for (const [k, gs] of Object.entries(ZERO_GROUPS)) {
+      if (!out.players.some((p) => p.s[k] !== null)) continue;
+      for (const p of out.players) {
+        if (p.s[k] === null && p.g.some((g) => gs.includes(g))) { p.s[k] = 0; (p.zf = p.zf || []).push(k); }
+      }
+    }
+    for (const p of out.players) delete p.g;
+  }
+  // Cards per player from the event timeline (regular time only)
+  const events = ev.status === "fulfilled" ? (Array.isArray(ev.value?.events) ? ev.value.events : []) : [];
+  const cardEvents = events.filter((e) => { const t = evType(e); return t.includes("card") && (t.includes("yellow") || t.includes("red")); });
+  const withPlayer = cardEvents.filter((e) => evPlayerId(e));
+  if (events.length && withPlayer.length === cardEvents.length) {
+    out.cardsOk = true;
+    for (const p of out.players) { p.s.yc = 0; p.s.rc = 0; }
+    for (const e of withPlayer) {
+      if ((Number(e.minute) || 0) > 90) continue;
+      const p = out.players.find((x) => x.id === evPlayerId(e)); if (!p) continue;
+      if (evType(e).includes("red")) p.s.rc++; else p.s.yc++;
+    }
+    for (const p of out.players) p.s.cards = p.s.yc + p.s.rc;
+  } else if (cardEvents.length) out.flags.push("Card events don't name the player — player card bets unavailable for this match");
+  else if (!events.length) out.flags.push("No event timeline — player cards unavailable");
+  if (out.status === "finished" && out.players.length) savePlayers(out);
+  return out;
+}
+
+function savePlayers(d) {
+  const idx = LS.get("dsc:pIndex") || [];
+  const put = () => LS.set("dsc:p:" + d.id, d);
+  while (!put() && idx.length) LS.del("dsc:p:" + idx.shift()); // phone storage full: drop oldest
+  idx.push(d.id);
+  while (idx.length > 350) LS.del("dsc:p:" + idx.shift());
+  LS.set("dsc:pIndex", idx);
+}
+
+async function fixtureLineups(id, keys) {
+  return cached(`pitch:lineups:${id}`, 900, async () => {
+    let d;
+    try { d = await pitch(`/v1/matches/${id}/lineups`, keys); } catch (e) { if (e.status === 404) return null; throw e; }
+    if (!d) return null;
+    const side = (x) => x ? { confirmed: !!x.confirmed, predicted: !x.confirmed, starters: (x.starters || []).map((p) => p.player_id || p.id), subs: (x.subs || []).map((p) => p.player_id || p.id) } : null;
+    return { home: side(d.home), away: side(d.away) };
+  });
+}
+
+// ---------------------------------------------------------------------
 //  8. Sources / diagnostics
 // ---------------------------------------------------------------------
 async function sources(keys) {
@@ -520,11 +653,21 @@ async function call(path) {
     if (!ID_RE.test(id)) throw new ApiError(400, "BAD_ID", "Invalid match id.");
     return matchDetail(id, keys);
   }
+  if (route === "players") {
+    const id = q.get("id") || "";
+    if (!ID_RE.test(id)) throw new ApiError(400, "BAD_ID", "Invalid match id.");
+    return matchPlayers(id, keys);
+  }
+  if (route === "lineups") {
+    const id = q.get("id") || "";
+    if (!ID_RE.test(id)) throw new ApiError(400, "BAD_ID", "Invalid match id.");
+    return fixtureLineups(id, keys);
+  }
   if (route === "sources") return sources(keys);
   if (route === "raw") {
     const id = q.get("id") || "", part = q.get("part") || "stats";
     if (!ID_RE.test(id)) throw new ApiError(400, "BAD_ID", "That isn't a match ID (it should look like m_ab12CD).");
-    const p = part === "match" ? "" : part === "events" ? "/events" : "/stats";
+    const p = part === "match" ? "" : part === "events" ? "/events" : part === "players" ? "/players" : part === "lineups" ? "/lineups" : "/stats";
     return { provider: "PitchAPI", endpoint: `/v1/matches/${id}${p}`, data: await pitch(`/v1/matches/${id}${p}`, keys) };
   }
   throw new ApiError(404, "NO_ROUTE", "Unknown request.");
