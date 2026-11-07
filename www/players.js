@@ -67,7 +67,9 @@ async function plLineups(id) {
   PL.lineups.set(id, lu);
   return lu;
 }
-const plSample = (A, key, mode) => (mode === "all" ? A[key].allSample || A[key].sample : A[key].sample);
+// Player stats use THIS SEASON only (matches from the current season in this competition).
+const plSample = (A, key, mode) => (mode === "all" ? A[key].allSample || A[key].sample : A[key].sample).filter((m) => m.cur);
+const seasonShort = (s) => { const m = String(s || "").match(/^(\d{4})\/(\d{4})$/); return m ? m[1].slice(2) + "/" + m[2].slice(2) : String(s || "this season"); };
 function plIds(A, mode) { return [...plSample(A, "home", mode), ...plSample(A, "away", mode)].map((m) => m.id); }
 
 // ---------------------------------------------------------------------
@@ -115,7 +117,7 @@ function buildPlayerProps(A, mode, opts = {}) {
         rec.apps.push({ m, opp, isHome, min: p.s.min, s: p.s, zf: p.zf || [], cardsOk: pd.cardsOk, lbl: p.lbl || {} });
       }
     }
-    const desc = mode === "all" ? `all ${team.name} games` : `${team.name} ${key} games`;
+    const desc = (mode === "all" ? `${team.name} all games` : `${team.name} ${key} games`) + ` · ${seasonShort(A.season)}`;
     for (const rec of players.values()) {
       const games = rec.apps.filter((a) => a.min === null || a.min === undefined || a.min >= PL_MIN_MIN);
       if (games.length < PL_SMALL_N) continue;
@@ -236,7 +238,7 @@ function plModeToggle(A) {
   const hn = A ? esc(A.home.team.name) : "Home team", an = A ? esc(A.away.team.name) : "Away team";
   return `<div class="pl-tog">
     <button class="${PL.mode === "venue" ? "active" : ""}" data-action="plMode" data-mode="venue"><b>Home / away rule</b><span>${A ? `${hn} home · ${an} away` : "home team at home · away team away"}</span></button>
-    <button class="${PL.mode === "all" ? "active" : ""}" data-action="plMode" data-mode="all"><b>All games</b><span>last 10, any venue</span></button></div>`;
+    <button class="${PL.mode === "all" ? "active" : ""}" data-action="plMode" data-mode="all"><b>All games</b><span>this season, any venue</span></button></div>`;
 }
 
 // ---------------------------------------------------------------------
@@ -259,7 +261,7 @@ function renderPlayersTab() {
   const props = buildPlayerProps(A, PL.mode, { chip: PL.filter, team: PL.team });
   const list = plFilterList(props, PL.filter, PL.filter === "best" ? 24 : 60);
   if (!list.length) {
-    html += missing.length ? skeleton(2, 260) : `<div class="card empty">${ICON.ball}<h3>No player lines at ${PL_MIN_RATE}%+</h3><p>No player hit ${PL_MIN_RATE}%+ on this market in at least ${PL_SMALL_N} games of ${PL_MIN_MIN}+ minutes${PL.mode === "venue" ? ". Try “All games” for a bigger sample." : "."}</p></div>`;
+    html += missing.length ? skeleton(2, 260) : `<div class="card empty">${ICON.ball}<h3>No player lines at ${PL_MIN_RATE}%+</h3><p>No player hit ${PL_MIN_RATE}%+ on this market in at least ${PL_SMALL_N} games of ${PL_MIN_MIN}+ minutes this season${PL.mode === "venue" ? ". Try “All games” for a bigger sample." : "."}</p></div>`;
   } else {
     html += `<div class="section-title"><h2>${PL.filter === "best" ? "Best player bets" : PL_CHIPS.find((c) => c[0] === PL.filter)[1]}</h2><span class="aside">${props.length} qualifying</span></div>`;
     html += list.map((p) => propCard(p)).join("");
@@ -277,7 +279,8 @@ function plSchedule() {
 }
 function plNote() {
   return `<div class="note card small"><b>How player lines work.</b><ul>
-    <li><b>Home / away rule</b> (default): home-team players use their team's last 10 <b>home</b> games, away-team players their last 10 <b>away</b> games, in this competition. “All games” uses the last 10 at any venue.</li>
+    <li><b>This season only:</b> player lines use matches from the current season in this competition — nothing from previous seasons.</li>
+    <li><b>Home / away rule</b> (default): home-team players use their team's home games this season (up to the last 10), away-team players their away games. “All games” uses the last 10 this season at any venue.</li>
     <li>Only appearances of <b>${PL_MIN_MIN}+ minutes</b> count. A line shows when the player hit it in ${PL_MIN_RATE}%+ of those games (${PL_MIN_N}+ games, or ${PL_SMALL_N}–${PL_MIN_N - 1} flagged “Small sample”). The boldest line that passes is shown.</li>
     <li>Stats come from PitchAPI's player stat lines. Cards come from the card events (regular time). Bookmakers may count tackles, shots and cards differently — check their rules.</li>
     <li>Trend strength = how solid the hit rate is given the sample size (a 9/10 beats a 4/4). Status comes from the published lineup when available.</li>
@@ -290,7 +293,7 @@ function plNote() {
 async function viewPlayers() {
   plInit();
   setNav("players");
-  app().innerHTML = `<div class="card hero"><h1 style="font-size:27px">Player bets</h1><p>The strongest player lines across this week's fixtures — shots, tackles, fouls, cards, goals and saves.</p></div><div id="plComps" style="margin-top:14px">${skeleton(1, 40)}</div><div id="plBody">${skeleton(3, 260)}</div>`;
+  app().innerHTML = `<div class="card hero"><h1 style="font-size:27px">Player bets</h1><p>The strongest player lines across this week's fixtures — shots, tackles, fouls, cards, goals and saves. This season's matches only.</p></div><div id="plComps" style="margin-top:14px">${skeleton(1, 40)}</div><div id="plBody">${skeleton(3, 260)}</div>`;
   if (!hasKey()) { $("#plBody").innerHTML = errorBox(Object.assign(new Error("Connect a data server first."), { hint: "Open Servers and paste your PitchAPI key." })); $("#plComps").innerHTML = ""; return; }
   try { await loadComps(); } catch (e) { $("#plBody").innerHTML = errorBox(e, "reload"); return; }
   $("#plComps").innerHTML = compChips(S.comp).replace(/data-action="comp"/g, 'data-action="plComp"');

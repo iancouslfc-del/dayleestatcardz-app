@@ -250,7 +250,7 @@ async function sampleFor(comp, team, side, beforeIso, keys) {
     }
     const mine = done.filter((m) => Date.parse(m.time) < before && (side === "any" ? (sameTeam(m.home, team, key) || sameTeam(m.away, team, key)) : sameTeam(side === "home" ? m.home : m.away, team, key)));
     let added = 0;
-    for (const m of mine) if (!out.find((x) => x.id === m.id)) { out.push(m); added++; }
+    for (const m of mine) if (!out.find((x) => x.id === m.id)) { out.push({ ...m, cur: i === 0 }); added++; }
     scanned.push({ season: s || "current", found: added, listed: done.length });
     if (out.length >= SAMPLE_SIZE) break;
   }
@@ -340,6 +340,7 @@ async function analysis(code, matchId, keys) {
     generatedAt: new Date().toISOString(),
     rule: `Home side: last ${SAMPLE_SIZE} completed HOME matches in ${comp.name}. Away side: last ${SAMPLE_SIZE} completed AWAY matches in ${comp.name}. Only matches before kick-off.`,
     competition: { code: comp.code, name: comp.name, logo: comp.logo },
+    season: comp.seasons[0] || null,
     fixture: { ...fx, referee: raw.referee || null, stadium: raw.stadium || null },
     home: { team: fx.home, side: "home", seasonsScanned: h.seasonsScanned, sample: h.matches.map(tag), allSample: hAll.matches },
     away: { team: fx.away, side: "away", seasonsScanned: a.seasonsScanned, sample: a.matches.map(tag), allSample: aAll.matches },
