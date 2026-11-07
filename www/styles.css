@@ -445,3 +445,5 @@ pre.raw { max-height: 320px; overflow: auto; font-size: 11px; background: #000; 
 .hb .op .crest, .hb .op .mono { width: 22px; height: 22px; font-size: 7px; }
 .hb .dt { font-size: 10.5px; color: var(--dim); white-space: nowrap; }
 .hb .ha { font-size: 9px; font-weight: 800; color: var(--dim); letter-spacing: .5px; }
+
+.pc-prop.below { text-shadow: none; }

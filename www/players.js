@@ -131,10 +131,15 @@ function buildPlayerProps(A, mode, opts = {}) {
         const valid = rows.filter((r) => r.v !== null);
         const n = valid.length;
         if (n < PL_SMALL_N) continue;
-        for (const line of [...def.lines].reverse()) {
+        const ladder = [...def.lines].reverse();
+        for (let li = 0; li < ladder.length; li++) {
+          const line = ladder[li];
           const hits = valid.filter((r) => r.v > line).length;
           const pct = (100 * hits) / n;
-          if (pct < PL_MIN_RATE) continue;
+          const last = li === ladder.length - 1;
+          const below = pct < PL_MIN_RATE;
+          // Normal lists: only lines at 70%+. Ranked market view: also the lowest line at its real rate.
+          if (below && !(opts.all && last && hits > 0)) continue;
           let streak = 0; for (const r of valid) { if (r.v > line) streak++; else break; }
           let status = null;
           if (lu && lu[key]) {
@@ -149,7 +154,7 @@ function buildPlayerProps(A, mode, opts = {}) {
             player: { id: rec.id, name: rec.name, img: rec.img, pos: POS[rec.pos] || (isGK ? "G" : null) },
             team: { id: team.id, name: team.name, img: team.img }, side: key,
             stat: def.stat, line, label: propLabel(def, line, def.stat === "tackles" ? tackleLabel : null),
-            hits, n, pct, streak, score: wilsonLB(hits, n), small: n < PL_MIN_N, mode, desc,
+            hits, n, pct, streak, score: wilsonLB(hits, n), small: n < PL_MIN_N, below, mode, desc,
             played45: games.length, teamGames: loaded, status,
             rows: rows.map((r) => ({ v: r.v, hit: r.v === null ? null : r.v > line, min: r.a.min, zf: r.a.zf.includes(def.stat), opp: { name: r.a.opp.name, img: r.a.opp.img }, home: r.a.isHome, date: r.a.m.time, mid: r.a.m.id })),
           });
@@ -158,7 +163,18 @@ function buildPlayerProps(A, mode, opts = {}) {
       }
     }
   }
-  return out.sort((x, y) => (x.small - y.small) || (y.score - x.score) || (y.line - x.line));
+  return out.sort(plSort);
+}
+const plTier = (p) => (p.below ? 2 : p.small ? 1 : 0);
+function plSort(x, y) { return (plTier(x) - plTier(y)) || (y.score - x.score) || (y.line - x.line); }
+
+function plListTitle(title, props, aside) {
+  if (title) return `<div class="section-title"><h2>${title}</h2><span class="aside">${aside}</span></div>`;
+  const name = PL_CHIPS.find((c) => c[0] === PL.filter)[1];
+  const q = props.filter((p) => !p.below).length;
+  let h = `<div class="section-title"><h2>${name} · every player ranked</h2><span class="aside">${q} at ${PL_MIN_RATE}%+</span></div>`;
+  if (!q) h += `<div class="card note small" style="margin-top:0">No player hit ${PL_MIN_RATE}%+ on ${name.toLowerCase()} this season${PL.filter === "assists" || PL.filter === "goals" || PL.filter === "cards" ? ` — normal for a rare event like this` : ""}. Below is every player ranked by their real hit rate (amber 50–69%, red under 50%).</div>`;
+  return h;
 }
 
 // "Best" view: no more than two lines per player so one player can't fill the list.
@@ -208,12 +224,12 @@ function propCard(p, opts = {}) {
       <div class="pc-who"><div class="pc-name"><b>${esc(p.player.name)}</b>${p.player.pos ? `<span class="pos">${p.player.pos}</span>` : ""}</div><div class="pc-team">${esc(p.team.name)}</div></div>
       <div class="pc-st"><span class="lbl">Status</span><b class="${statusCls}">${esc(status)}</b></div>
     </div>
-    <div class="pc-prop">${esc(p.label)}</div>
+    <div class="pc-prop${p.below ? " below" : ""}"${p.below ? ` style="color:${colorOf({ pct: p.pct, n: p.n })}"` : ""}>${esc(p.label)}</div>
     <div class="pc-row">
       <div><span class="lbl">Hit rate · ${esc(p.desc)}</span><div class="pc-big"><b style="color:${colorOf({ pct: p.pct, n: p.n })}">${Math.round(p.pct)}%</b><span>${p.hits} of ${p.n} games</span></div></div>
       <div class="r"><span class="lbl">Current streak</span><div class="pc-big"><b>${p.streak}</b><span>in a row</span></div></div>
     </div>
-    <div class="pc-str"><span class="lbl">Trend strength</span>${strengthBar(p.score)}${p.small ? `<span class="warn-t small">Small sample</span>` : ""}</div>
+    <div class="pc-str"><span class="lbl">Trend strength</span>${strengthBar(p.score)}${p.below ? `<span class="dim small">Below ${PL_MIN_RATE}%</span>` : p.small ? `<span class="warn-t small">Small sample</span>` : ""}</div>
     <div class="pc-hist">
       <div class="pc-hh"><span>Game history · ${PL_MIN_MIN}+ minutes · newest first</span><span class="lg"><i class="h"></i>Hit <i class="m"></i>Miss</span></div>
       <div class="hist-strip">${p.rows.map((r) => `<div class="hb">
@@ -258,12 +274,12 @@ function renderPlayersTab() {
   if (missing.length || (L.total && L.done < L.total)) html += `<div class="card progress">Loading player stats ${L.done}/${L.total || missing.length} matches — cards appear as each match arrives<div class="bar"><i style="width:${L.total ? (100 * L.done) / L.total : 0}%"></i></div></div>`;
   html += plModeToggle(A);
   html += `<div class="pl-team">${[["both", "Both teams"], ["home", A.home.team.name], ["away", A.away.team.name]].map(([k, l]) => `<button class="${PL.team === k ? "active" : ""}" data-action="plTeam" data-team="${k}">${k !== "both" ? crest(A[k].team) : ""}<span>${esc(l)}</span></button>`).join("")}</div>`;
-  const props = buildPlayerProps(A, PL.mode, { chip: PL.filter, team: PL.team });
+  const props = buildPlayerProps(A, PL.mode, { chip: PL.filter, team: PL.team, all: PL.filter !== "best" });
   const list = plFilterList(props, PL.filter, PL.filter === "best" ? 24 : 60);
   if (!list.length) {
     html += missing.length ? skeleton(2, 260) : `<div class="card empty">${ICON.ball}<h3>No player lines at ${PL_MIN_RATE}%+</h3><p>No player hit ${PL_MIN_RATE}%+ on this market in at least ${PL_SMALL_N} games of ${PL_MIN_MIN}+ minutes this season${PL.mode === "venue" ? ". Try “All games” for a bigger sample." : "."}</p></div>`;
   } else {
-    html += `<div class="section-title"><h2>${PL.filter === "best" ? "Best player bets" : PL_CHIPS.find((c) => c[0] === PL.filter)[1]}</h2><span class="aside">${props.length} qualifying</span></div>`;
+    html += plListTitle(PL.filter === "best" ? "Best player bets" : null, props, `${props.length} qualifying`);
     html += list.map((p) => propCard(p)).join("");
   }
   html += plNote();
@@ -283,6 +299,7 @@ function plNote() {
     <li><b>Home / away rule</b> (default): home-team players use their team's home games this season (up to the last 10), away-team players their away games. “All games” uses the last 10 this season at any venue.</li>
     <li>Only appearances of <b>${PL_MIN_MIN}+ minutes</b> count. A line shows when the player hit it in ${PL_MIN_RATE}%+ of those games (${PL_MIN_N}+ games, or ${PL_SMALL_N}–${PL_MIN_N - 1} flagged “Small sample”). The boldest line that passes is shown.</li>
     <li>Stats come from PitchAPI's player stat lines. Cards come from the card events (regular time). Bookmakers may count tackles, shots and cards differently — check their rules.</li>
+    <li><b>★ Best</b> shows only lines at ${PL_MIN_RATE}%+. Pick a market (Shots, Assists…) to see <b>every player ranked</b> by their real hit rate — including those below ${PL_MIN_RATE}% in amber/red.</li>
     <li>Trend strength = how solid the hit rate is given the sample size (a 9/10 beats a 4/4). Status comes from the published lineup when available.</li>
     <li>No odds are shown: there's no odds server connected. Historical hit rates only — not predictions. 18+ · BeGambleAware.org</li></ul></div>`;
 }
@@ -337,11 +354,11 @@ function renderPlayersScreen() {
     html += `<div class="card progress">${sc.current ? `Analysing ${esc(sc.current.home.name)} v ${esc(sc.current.away.name)} · ` : ""}fixture ${Math.min(sc.done + 1, tot)} of ${sc.fixtures.length || "…"}${PL.loading.total ? ` · player stats ${PL.loading.done}/${PL.loading.total}` : ""}<div class="bar"><i style="width:${(100 * sc.done) / tot}%"></i></div><div class="dim" style="margin-top:6px">First scan downloads each team's recent player stats — finished matches are then saved on this phone, so later scans are quick.</div></div>`;
   }
   if (!sc.running && !sc.fixtures.length) { body.innerHTML = html + `<div class="card empty">${ICON.ball}<h3>No fixtures in the next ${PL_SCAN_DAYS} days</h3><p>Pick another league above.</p></div>`; return; }
-  const all = sc.analyses.flatMap((A) => buildPlayerProps(A, PL.mode, { chip: PL.filter }));
-  all.sort((x, y) => (x.small - y.small) || (y.score - x.score) || (y.line - x.line));
+  const all = sc.analyses.flatMap((A) => buildPlayerProps(A, PL.mode, { chip: PL.filter, all: PL.filter !== "best" }));
+  all.sort(plSort);
   const list = plFilterList(all, PL.filter, PL.filter === "best" ? 30 : 60);
   if (list.length) {
-    html += `<div class="section-title"><h2>${PL.filter === "best" ? "Top player bets" : PL_CHIPS.find((c) => c[0] === PL.filter)[1]}</h2><span class="aside">${sc.analyses.length} of ${sc.fixtures.length} fixtures · ${all.length} lines</span></div>`;
+    html += plListTitle(PL.filter === "best" ? "Top player bets" : null, all, `${sc.analyses.length} of ${sc.fixtures.length} fixtures · ${all.length} lines`);
     html += list.map((p) => propCard(p)).join("");
   } else if (!sc.running) html += `<div class="card empty">${ICON.ball}<h3>No player lines at ${PL_MIN_RATE}%+</h3><p>Try another market or “All games”.</p></div>`;
   else html += skeleton(2, 260);
