@@ -151,9 +151,21 @@ for (const f of fixtures) {
   }
 }
 
-// ---------- 3. write ----------
+// ---------- 3. write (packed: each picture listed once, game rows as short arrays) ----------
+function pack(b) {
+  const imgs = new Map();
+  const ref = (u) => { if (typeof u !== "string") return u; if (!imgs.has(u)) imgs.set(u, imgs.size); return imgs.get(u); };
+  const walk = (o) => { if (Array.isArray(o)) return o.map(walk); if (o && typeof o === "object") { const r = {}; for (const [k, v] of Object.entries(o)) r[k] = k === "img" ? ref(v) : walk(v); return r; } return o; };
+  const out = walk(b);
+  for (const f of out.fixtures) {
+    for (const p of f.players) { delete p.fixture; delete p.comp; p.rows = p.rows.map((r) => [r.v, r.hit, r.min, r.zf ? 1 : 0, r.home ? 1 : 0, r.date, r.opp.name, r.opp.img]); }
+    for (const s of f.streaks) { delete s.fx; delete s.team; }
+  }
+  out.v = 2; out.imgs = [...imgs.keys()];
+  return out;
+}
 fs.mkdirSync(OUT_DIR, { recursive: true });
-fs.writeFileSync(path.join(OUT_DIR, "brief.json"), JSON.stringify(brief));
+fs.writeFileSync(path.join(OUT_DIR, "brief.json"), JSON.stringify(pack(brief)));
 fs.mkdirSync(CACHE_DIR, { recursive: true });
 fs.writeFileSync(CACHE_FILE, JSON.stringify(store));
 const kb = Math.round(fs.statSync(path.join(OUT_DIR, "brief.json")).size / 1024);

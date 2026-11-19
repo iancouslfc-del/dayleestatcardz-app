@@ -10,19 +10,49 @@ const BRIEF_URL = "https://raw.githubusercontent.com/iancouslfc-del/dayleestatca
 const BR = { data: null, at: 0, state: "idle", error: null, ask: null, mode: "ask" };
 const PSHORT = { FT: "Full match", H1: "1st half", H2: "2nd half" };
 
+// The brief is published packed (v2): pictures listed once in d.imgs, player
+// game rows as short arrays. unpackBrief() rebuilds the shapes the screens use.
+function unpackBrief(d) {
+  if (!d || d.v === 1) return d;
+  if (d.v !== 2) throw new Error("Brief format not recognised — update the app.");
+  const im = d.imgs || [];
+  const pic = (x) => (typeof x === "number" ? im[x] ?? null : x);
+  const walk = (o) => { if (Array.isArray(o)) o.forEach(walk); else if (o && typeof o === "object") for (const k in o) { if (k === "img") o[k] = pic(o[k]); else walk(o[k]); } };
+  walk(d.fixtures);
+  for (const f of d.fixtures) {
+    const fixture = { id: f.id, time: f.time, home: f.home, away: f.away };
+    for (const p of f.players || []) {
+      p.fixture = fixture; p.comp = f.comp;
+      p.rows = p.rows.map((r) => (Array.isArray(r) ? { v: r[0], hit: r[1], min: r[2], zf: !!r[3], home: !!r[4], date: r[5], opp: { name: r[6], img: pic(r[7]) } } : r));
+    }
+    for (const s of f.streaks || []) { s.fx = { id: f.id, comp: f.comp }; s.team = s.side === "home" ? f.home : f.away; }
+  }
+  d.v = 1;
+  return d;
+}
+const BRIEF_KEY = "dsc:briefRaw";
+function savedBrief() {
+  try { const t = localStorage.getItem(BRIEF_KEY); return t ? unpackBrief(JSON.parse(t)) : null; } catch { return null; }
+}
+function saveBrief(text) {
+  try { localStorage.removeItem("dsc:brief"); } catch {}
+  // keep a copy for offline use, but never let it crowd out saved match data
+  try { if (text.length < 1500000) localStorage.setItem(BRIEF_KEY, text); else localStorage.removeItem(BRIEF_KEY); } catch {}
+}
+
 async function loadBrief(force) {
   if (BR.data && !force && Date.now() - BR.at < 10 * 60000) return BR.data;
-  if (!BR.data) { const saved = store.get("brief", null); if (saved && saved.v === 1) { BR.data = saved; BR.at = 0; } }
+  if (!BR.data) { const saved = savedBrief(); if (saved) { BR.data = saved; BR.at = 0; } }
   BR.state = "loading";
   try {
     const r = await window.Engine.fetchText(BRIEF_URL + "?t=" + Date.now());
-    if (r.status === 404) { BR.state = "missing"; return BR.data; }
+    if (r.status === 404) { BR.state = BR.data ? "ok" : "missing"; return BR.data; }
     if (!r.status) throw new Error("No connection to GitHub.");
     if (r.status !== 200) throw new Error("GitHub error " + r.status);
-    const d = JSON.parse(r.body);
-    if (!d || d.v !== 1) throw new Error("Brief format not recognised.");
+    const d = unpackBrief(JSON.parse(r.body));
+    if (!d || !Array.isArray(d.fixtures)) throw new Error("Brief format not recognised.");
     BR.data = d; BR.at = Date.now(); BR.state = "ok"; BR.error = null;
-    store.set("brief", d);
+    saveBrief(r.body);
   } catch (e) { BR.state = BR.data ? "ok" : "error"; BR.error = e.message; }
   return BR.data;
 }
@@ -36,7 +66,7 @@ function allTips(d, withSmall) {
     .sort((a, b) => (a.t.small - b.t.small) || (b.t.score - a.t.score));
 }
 function allProps(d) {
-  return d.fixtures.flatMap((f) => (f.players || []).map((p) => ({ ...p, comp: f.comp })))
+  return d.fixtures.flatMap((f) => (f.players || []).map((p) => ({ ...p, comp: f.comp, fixture: p.fixture || { id: f.id, time: f.time, home: f.home, away: f.away } })))
     .sort((a, b) => (a.small - b.small) || (b.score - a.score));
 }
 const statDef = (stat) => PROP_DEFS.find((x) => x.stat === stat);
