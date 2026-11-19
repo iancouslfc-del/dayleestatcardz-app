@@ -447,3 +447,38 @@ pre.raw { max-height: 320px; overflow: auto; font-size: 11px; background: #000; 
 .hb .ha { font-size: 9px; font-weight: 800; color: var(--dim); letter-spacing: .5px; }
 
 .pc-prop.below { text-shadow: none; }
+
+/* ---------- Totals + split by team ---------- */
+.switch { display: inline-flex; align-items: center; gap: 8px; font-size: 11.5px; font-weight: 700; color: var(--muted); flex: none; }
+.switch i { position: relative; width: 34px; height: 20px; border-radius: 20px; background: var(--card-3); border: 1px solid var(--line-2); transition: background .2s; }
+.switch i::after { content: ""; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: #8b9690; transition: transform .2s, background .2s; }
+.switch.on { color: var(--green); }
+.switch.on i { background: rgba(30,227,139,.2); border-color: rgba(30,227,139,.5); }
+.switch.on i::after { transform: translateX(14px); background: var(--green); }
+.totals { padding: 14px; margin-top: 12px; }
+.tot-row { display: block; width: 100%; text-align: left; padding: 12px 0; border-top: 1px solid var(--line); }
+.tot-row:first-of-type { margin-top: 8px; }
+.tot-row:active { opacity: .8; }
+.tot-top { display: flex; align-items: center; gap: 10px; }
+.tot-who { flex: 1; min-width: 0; }
+.tot-who b { display: block; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tot-who span { font-size: 11px; color: var(--muted); }
+.tot-num { text-align: right; }
+.tot-num b { display: block; font-family: var(--num); font-size: 30px; line-height: 1; font-weight: 700; }
+.tot-num span { font-size: 11px; color: var(--muted); }
+.tot-split { margin-top: 10px; }
+.tsb { display: flex; height: 10px; border-radius: 6px; overflow: hidden; background: var(--card-3); gap: 2px; }
+.tsb i { display: block; height: 100%; background: var(--green); }
+.tsb i.o { background: var(--blue); }
+.tsl { display: flex; justify-content: space-between; gap: 8px; margin-top: 7px; font-size: 12px; color: var(--muted); }
+.tsl span { display: flex; align-items: center; gap: 5px; min-width: 0; }
+.tsl b { font-family: var(--num); font-size: 17px; color: var(--text); }
+.tsl em { font-style: normal; font-size: 10.5px; color: var(--dim); }
+.tsl .d { width: 9px; height: 9px; border-radius: 3px; background: var(--green); flex: none; }
+.tsl .d.o { background: var(--blue); }
+.tsc { margin-top: 6px; font-size: 11px; color: var(--muted); }
+.tot-comb { display: flex; align-items: baseline; gap: 10px; padding-top: 10px; border-top: 1px solid var(--line); font-size: 12px; color: var(--muted); }
+.tot-comb b { margin-left: auto; font-family: var(--num); font-size: 22px; color: var(--text); }
+.tot-sheet { display: flex; justify-content: space-between; gap: 8px; margin: 10px 0 2px; padding: 9px 10px; border-radius: 10px; background: var(--card-3); font-size: 12px; color: var(--muted); }
+.tot-sheet b { font-family: var(--num); font-size: 16px; color: var(--text); }
+.chart-card .chart-head h3 { min-width: 0; }

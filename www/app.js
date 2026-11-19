@@ -78,6 +78,7 @@ const S = {
   detailErr: new Map(),    // match id -> error message
   loading: { total: 0, done: 0 },
   tab: store.get("tab", "goals"),
+  split: store.get("split", false),   // show each team's share of totals
   period: store.get("period", "FT"),
   hero: {},                // tab -> market id
   favTeams: store.get("favTeams", {}),   // id -> {id,name,img}
@@ -293,13 +294,24 @@ function barChart(items, line, opts = {}) {
       s += `<text x="${cx}" y="${y(top * 0.35) - 4}" text-anchor="middle" font-size="9" fill="#5d6862">n/a</text>`;
     } else {
       const h = Math.max(y(0) - y(it.value), 2.5);
+      if (opts.split && it.split && it.value > 0) {
+        const ht = y(0) - y(it.split[0]), ho = y(0) - y(it.split[1]);
+        s += `<clipPath id="cp${opts.id}${i}"><rect x="${x}" y="${y(0) - h}" width="${bw}" height="${h}" rx="4"/></clipPath><g clip-path="url(#cp${opts.id}${i})">`;
+        if (ht > 0) s += `<rect x="${x}" y="${y(0) - ht}" width="${bw}" height="${ht}" fill="#1ee38b"/>`;
+        if (ho > 0) s += `<rect x="${x}" y="${y(0) - ht - ho}" width="${bw}" height="${ho}" fill="#5fb4ff"/>`;
+        if (ht > 0 && ho > 0) s += `<rect x="${x}" y="${y(0) - ht - 0.6}" width="${bw}" height="1.2" fill="#0a0e0c"/>`;
+        s += `</g>`;
+        if (ht >= 11) s += `<text x="${cx}" y="${y(0) - ht / 2 + 3.5}" text-anchor="middle" font-size="9" font-weight="800" fill="#04110a">${it.split[0]}</text>`;
+        if (ho >= 11) s += `<text x="${cx}" y="${y(0) - ht - ho / 2 + 3.5}" text-anchor="middle" font-size="9" font-weight="800" fill="#06192b">${it.split[1]}</text>`;
+      } else
       s += `<rect x="${x}" y="${y(0) - h}" width="${bw}" height="${h}" rx="4" fill="url(#${it.hit ? "gW" : "gL"})"/>`;
-      s += `<text x="${cx}" y="${y(0) - h - 4}" text-anchor="middle" font-size="10.5" font-weight="700" fill="${it.hit ? "#1ee38b" : "#ff6b85"}">${it.value}</text>`;
+      s += `<text x="${cx}" y="${y(0) - h - 4}" text-anchor="middle" font-size="10.5" font-weight="700" fill="${opts.noLine ? "#eef4f0" : it.hit ? "#1ee38b" : "#ff6b85"}">${it.value}</text>`;
     }
     s += `<text x="${cx}" y="${H - 12}" text-anchor="middle" font-size="8.5" font-weight="600" fill="#8b9690">${it.label || ""}</text>`;
     if (it.sub) s += `<text x="${cx}" y="${H - 2}" text-anchor="middle" font-size="7.5" fill="#5d6862">${it.sub}</text>`;
   });
   // threshold line
+  if (opts.noLine) return s + `</svg>`;
   const ly = y(line);
   s += `<line x1="${padL}" x2="${W - 34}" y1="${ly}" y2="${ly}" stroke="#ffb84d" stroke-width="1.4" stroke-dasharray="5 4"/>`;
   s += `<rect x="${W - 34}" y="${ly - 9}" width="34" height="16" rx="4" fill="#ffb84d"/><text x="${W - 17}" y="${ly + 3}" text-anchor="middle" font-size="9.5" font-weight="800" fill="#1a1204">${line}</text>`;
@@ -441,18 +453,19 @@ function renderMatchBody() {
       <div class="sub">${esc(A.home.team.name)} ${r.h.hits}/${r.h.n} · ${esc(A.away.team.name)} ${r.a.hits}/${r.a.n}</div></button>`).join("");
     html += `</div>`;
   }
+  html += totalsCard(A, tab, period);
   // Hero chart
   const heroId = S.hero[tab] || HERO_DEFAULT[tab];
   const totals = MARKETS[tab].filter((m) => m.metric === "total");
   const heroMk = totals.find((m) => m.id === heroId) || totals[0];
   const hh = evalSide(A.home, heroMk, tab, period), ha = evalSide(A.away, heroMk, tab, period);
-  html += `<div class="card chart-card"><div class="chart-head"><h3>Total ${UNIT[tab]} per match · ${PERIODS[period]}</h3></div>
+  html += `<div class="card chart-card"><div class="chart-head"><h3>Total ${UNIT[tab]} per match · ${PERIODS[period]}</h3>${splitSwitch()}</div>
     <div class="line-chips">${totals.map((m) => `<button class="${m.id === heroMk.id ? "active" : ""}" data-action="hero" data-id="${m.id}">${tab === "corners" ? m.label.split(" ")[0] : "O" + m.line}</button>`).join("")}</div>
     <div class="chart-pair">
-      <div><div class="chart-label">${crest(A.home.team)}<span>${esc(A.home.team.name)} · home</span><span class="k" style="color:${colorOf(hh)}">${hh.hits}/${hh.n}</span></div>${barChart(chartItemsFor(hh), heroMk.line, { aria: heroMk.label })}</div>
-      <div><div class="chart-label">${crest(A.away.team)}<span>${esc(A.away.team.name)} · away</span><span class="k" style="color:${colorOf(ha)}">${ha.hits}/${ha.n}</span></div>${barChart(chartItemsFor(ha), heroMk.line, { aria: heroMk.label })}</div>
+      <div><div class="chart-label">${crest(A.home.team)}<span>${esc(A.home.team.name)} · home</span><span class="k" style="color:${colorOf(hh)}">${hh.hits}/${hh.n}</span></div>${barChart(chartItemsFor(hh), heroMk.line, { aria: heroMk.label, split: S.split, id: "h" })}</div>
+      <div><div class="chart-label">${crest(A.away.team)}<span>${esc(A.away.team.name)} · away</span><span class="k" style="color:${colorOf(ha)}">${ha.hits}/${ha.n}</span></div>${barChart(chartItemsFor(ha), heroMk.line, { aria: heroMk.label, split: S.split, id: "a" })}</div>
     </div>
-    <div class="legend"><span><i style="background:#1ee38b"></i>Over the line</span><span><i style="background:#ff4f6d"></i>Under</span><span><i style="background:#2c3632"></i>No data</span><span>Oldest → newest</span></div></div>`;
+    <div class="legend">${S.split ? `<span><i style="background:#1ee38b"></i>Team's own ${UNIT[tab]}</span><span><i style="background:#5fb4ff"></i>Opponent's</span><span>Number above = match total (green over the line, red under)</span>` : `<span><i style="background:#1ee38b"></i>Over the line</span><span><i style="background:#ff4f6d"></i>Under</span>`}<span><i style="background:#2c3632"></i>No data</span><span>Oldest → newest</span></div></div>`;
   // Market table
   html += `<div class="section-title"><h2>${TAB_NAMES[tab]} · ${PERIODS[period]}</h2><span class="aside">Tap a row for the matches</span></div>`;
   html += `<div class="mkt-head"><span>Market</span><span class="c">${crest(A.home.team)}<span>Home</span></span><span class="c">${crest(A.away.team)}<span>Away</span></span><span class="c"><span>Combined</span></span></div>`;
@@ -476,6 +489,56 @@ function seasonsNote(side) {
   const sc = (side.seasonsScanned || []).map((x) => typeof x === "string" ? x : `${x.season}: ${x.found}${x.error ? " (error)" : ""}`);
   return sc.length ? "Seasons checked — " + sc.join(" · ") : "";
 }
+function splitSwitch() {
+  return `<button class="switch ${S.split ? "on" : ""}" data-action="split" aria-pressed="${S.split}"><span>Split by team</span><i></i></button>`;
+}
+
+// Totals across a side's sample for the current tab + period, with each team's share.
+function sideTotals(side, tab, period) {
+  const t = side.side === "home" ? 0 : 1;
+  const out = { n: 0, team: 0, opp: 0, total: 0, pending: 0, missing: 0, y: [0, 0], r: [0, 0], cardsSplit: tab === "cards" };
+  for (const m of side.sample) {
+    const r = valuesFor(tab, period, m, cachedDetail(m.id));
+    if (!r.v) { if (r.pending) out.pending++; else out.missing++; continue; }
+    out.n++; out.team += r.v[t]; out.opp += r.v[1 - t];
+    if (r.cards) { out.y[0] += r.cards.y[t]; out.y[1] += r.cards.y[1 - t]; out.r[0] += r.cards.r[t]; out.r[1] += r.cards.r[1 - t]; }
+  }
+  out.total = out.team + out.opp;
+  return out;
+}
+const per = (x, n) => (n ? (x / n).toFixed(2).replace(/\.?0+$/, "") : "–");
+
+function totalsCard(A, tab, period) {
+  const unit = UNIT[tab];
+  const rows = [A.home, A.away].map((side) => ({ side, T: sideTotals(side, tab, period) }));
+  const comb = rows.reduce((c, { T }) => ({ n: c.n + T.n, total: c.total + T.total }), { n: 0, total: 0 });
+  let h = `<div class="card totals"><div class="chart-head"><h3>Total ${unit} · ${PERIODS[period]}</h3>${splitSwitch()}</div>`;
+  for (const { side, T } of rows) {
+    const name = esc(side.team.name);
+    const where = side.side === "home" ? "home" : "away";
+    h += `<button class="tot-row" data-action="totals" data-side="${side.side}">
+      <div class="tot-top">${crest(side.team)}<div class="tot-who"><b>${name}</b><span>Last ${side.sample.length} ${where} · ${T.n} with data${T.pending ? ` · ${T.pending} loading` : ""}</span></div>
+      <div class="tot-num"><b>${T.n ? T.total : "–"}</b><span>${per(T.total, T.n)} per game</span></div></div>`;
+    if (S.split) {
+      const pt = T.total ? (100 * T.team) / T.total : 50;
+      h += `<div class="tot-split"><div class="tsb"><i style="width:${T.total ? pt : 0}%"></i><i class="o" style="width:${T.total ? 100 - pt : 0}%"></i></div>
+        <div class="tsl"><span><i class="d"></i>${name} <b>${T.team}</b> <em>${per(T.team, T.n)}/g</em></span><span><i class="d o"></i>Opponents <b>${T.opp}</b> <em>${per(T.opp, T.n)}/g</em></span></div>
+        ${tab === "cards" && T.n ? `<div class="tsc">${name}: ${T.y[0]} yellow · ${T.r[0]} red &nbsp;|&nbsp; Opponents: ${T.y[1]} yellow · ${T.r[1]} red</div>` : ""}</div>`;
+    }
+    h += `</button>`;
+  }
+  h += `<div class="tot-comb"><span>Combined · ${comb.n} games</span><b>${comb.n ? comb.total : "–"}</b><span>${per(comb.total, comb.n)} per game</span></div>`;
+  h += `<div class="dim small" style="margin-top:6px">${S.split ? `“Opponents” = every team ${esc(A.home.team.name)} faced at home, or ${esc(A.away.team.name)} faced away, in these samples.` : "Turn on “Split by team” to see how many of these each team got."} Tap a team to see every match.</div></div>`;
+  return h;
+}
+
+function openTotals(sideKey) {
+  const A = S.analysis; if (!A) return;
+  const side = A[sideKey];
+  const mk = { metric: "total", line: -0.5 }; // every match "hits" — this view is about the numbers, not a market
+  openSheet({ title: `Total ${UNIT[S.tab]} · ${side.team.name}`, sub: `${PERIODS[S.period]} · last ${side.sample.length} ${side.side} matches`, tab: S.tab, period: S.period, totals: true, sides: [{ side, mk }] });
+}
+
 function colorOf(res) { const c = rateClass(res.pct, res.n); return c === "g" ? "#1ee38b" : c === "a" ? "#ffb84d" : c === "r" ? "#ff4f6d" : "#5d6862"; }
 function pill(res) {
   if (res.n === 0 && res.pending) return `<div class="pill load"><span class="p">···</span><span class="f">loading</span></div>`;
@@ -486,7 +549,8 @@ function pill(res) {
 function chartItemsFor(res) {
   return res.rows.slice().reverse().map((r) => {
     const opp = res.side === "home" ? r.m.away : r.m.home; // samples are strictly home-only or away-only
-    return { value: r.v ? r.x : null, hit: r.hit, label: short3(opp.name), sub: new Date(r.m.time).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", timeZone: tz }) };
+    const t = res.side === "home" ? 0 : 1;
+    return { value: r.v ? r.x : null, hit: r.hit, split: r.v ? [r.v[t], r.v[1 - t]] : null, label: short3(opp.name), sub: new Date(r.m.time).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", timeZone: tz }) };
   });
 }
 
@@ -518,13 +582,14 @@ function openSheet(def) {
     const res = evalSide(side, mk, tab, period);
     const t = side.side === "home" ? 0 : 1;
     html += `<div class="card side-block"><div class="side-head">${crest(side.team)}<div class="t"><b>${esc(label || side.team.name)}</b><span>Last ${side.sample.length} ${side.side.toUpperCase()} matches${side.sample.length < 10 ? " (only " + side.sample.length + " available)" : ""}</span></div>
-      <div class="big" style="color:${colorOf(res)}">${fmtPct(res.pct)}<small>${res.hits}/${res.n}${res.n < res.sampleSize ? ` · ${res.sampleSize - res.n} excluded` : ""}</small></div></div>
-      <div style="margin-top:10px">${barChart(chartItemsFor(res), mk.line, { h: 140, aria: def.title })}</div>`;
-    for (const r of res.rows) html += matchRow(r, t, tab, period, mk);
+      ${def.totals ? (() => { const T = sideTotals(side, tab, period); return `<div class="big">${T.total}<small>${per(T.total, T.n)} per game</small></div></div>`; })() : `<div class="big" style="color:${colorOf(res)}">${fmtPct(res.pct)}<small>${res.hits}/${res.n}${res.n < res.sampleSize ? ` · ${res.sampleSize - res.n} excluded` : ""}</small></div></div>`}
+      <div style="margin-top:10px">${barChart(chartItemsFor(res), mk.line, { h: 140, aria: def.title, split: S.split && mk.metric === "total", id: "s" + side.side, noLine: def.totals })}</div>`;
+    if (def.totals) { const T = sideTotals(side, tab, period); html += `<div class="tot-sheet"><span>Total <b>${T.total}</b> in ${T.n} games</span><span>${esc(side.team.name)} <b style="color:#1ee38b">${T.team}</b></span><span>Opponents <b style="color:#5fb4ff">${T.opp}</b></span></div>`; }
+    for (const r of res.rows) html += matchRow(r, t, tab, period, mk, def.totals);
     if (side.sample.length < 10) html += `<p class="muted small" style="margin:10px 0 0">Fewer than 10 ${side.side} matches in this competition. ${esc(seasonsNote(side))}</p>`;
     html += `</div>`;
   }
-  html += `<p class="dim small" style="margin-top:12px">Every row above is a real completed match. ✓ = won, ✗ = lost, – = excluded (no data, never counted as a loss).</p>`;
+  html += def.totals ? `<p class="dim small" style="margin-top:12px">Every row above is a real completed match. Matches with no data are excluded from the totals.</p>` : `<p class="dim small" style="margin-top:12px">Every row above is a real completed match. ✓ = won, ✗ = lost, – = excluded (no data, never counted as a loss).</p>`;
   const sh = $("#sheet"); sh.innerHTML = html; sh.scrollTop = 0;
   sh.classList.add("open"); $("#scrim").classList.add("open");
 }
@@ -690,7 +755,7 @@ function openTip(i) {
 
 function closeSheet() { $("#sheet").classList.remove("open"); $("#scrim").classList.remove("open"); }
 
-function matchRow(r, t, tab, period, mk) {
+function matchRow(r, t, tab, period, mk, totalsMode) {
   const m = r.m, d = r.d;
   const g = goalsFor(m, d);
   const ftTxt = m.score ? `${m.score[0]}-${m.score[1]}` : "";
@@ -703,10 +768,10 @@ function matchRow(r, t, tab, period, mk) {
   if (r.v) {
     let sub = "";
     if (tab === "cards" && r.cards) sub = `${r.cards.y[0] + r.cards.y[1]}Y ${r.cards.r[0] + r.cards.r[1]}R`;
-    else if (mk.metric === "total") sub = `${r.v[0]}+${r.v[1]}`;
+    else if (mk.metric === "total") sub = S.split ? `${short3(t === 0 ? r.m.home.name : r.m.away.name)} ${r.v[t]} · opp ${r.v[1 - t]}` : `${r.v[0]}+${r.v[1]}`;
     else sub = mk.metric === "team" ? "team" : mk.metric === "opp" ? "opp" : `${r.v[0]} & ${r.v[1]}`;
     val = `${r.x}<small>${sub}</small>`;
-    res = `<span class="res ${r.hit ? "w" : "l"}">${r.hit ? "✓" : "✗"}</span>`;
+    res = totalsMode ? `<span class="res x">${r.x}</span>` : `<span class="res ${r.hit ? "w" : "l"}">${r.hit ? "✓" : "✗"}</span>`;
   } else { val = `<small style="color:var(--dim)">n/a</small>`; res = `<span class="res x">–</span>`; }
   const flags = [];
   if (!r.v && r.missing && !r.pending) flags.push(r.missing);
@@ -867,6 +932,8 @@ document.addEventListener("click", async (ev) => {
   } else if (a === "tip") openTip(Number(b.dataset.i));
   else if (a === "hero") { S.hero[S.tab] = b.dataset.id; renderMatchBody(); }
   else if (a === "market") openMarket(b.dataset.id);
+  else if (a === "split") { S.split = !S.split; store.set("split", S.split); renderMatchBody(); }
+  else if (a === "totals") openTotals(b.dataset.side);
   else if (a === "closeSheet") closeSheet();
   else if (a === "favTeam") {
     const t = S.analysis.fixture[b.dataset.side];
