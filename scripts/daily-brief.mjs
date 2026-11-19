@@ -7,7 +7,7 @@
 //  BRIEF_HOURS hours across all leagues, and writes out/brief.json.
 //
 //  Env:  PITCHAPI_KEY (required)  FOOTBALL_DATA_KEY (optional)
-//        BRIEF_HOURS (default 36) BRIEF_MAX_FIXTURES (default 80)
+//        BRIEF_HOURS (default 48) BRIEF_MAX_FIXTURES (default 120)
 // =====================================================================
 import fs from "node:fs";
 import path from "node:path";
@@ -19,8 +19,8 @@ const WWW = path.join(ROOT, "www");
 const CACHE_DIR = path.join(ROOT, ".brief-cache");
 const CACHE_FILE = path.join(CACHE_DIR, "store.json");
 const OUT_DIR = path.join(ROOT, "out");
-const HOURS = Number(process.env.BRIEF_HOURS || 36);
-const MAX_FIX = Number(process.env.BRIEF_MAX_FIXTURES || 80);
+const HOURS = Number(process.env.BRIEF_HOURS || 48);
+const MAX_FIX = Number(process.env.BRIEF_MAX_FIXTURES || 120);
 const t0 = Date.now();
 const log = (...a) => console.log(`[${((Date.now() - t0) / 1000).toFixed(0)}s]`, ...a);
 
@@ -130,7 +130,10 @@ for (const f of fixtures) {
     }
     await plLineups(f.id);
     await plLoad([...new Set([...plIds(A, "venue"), ...plIds(A, "all")])], () => {});
-    const props = buildPlayerProps(A, "venue", { chip: "best" });
+    // likely starters first; bench / not-in-squad players only after them
+    const benched = (p) => /bench|not in squad/i.test(p.status || "");
+    const all = buildPlayerProps(A, "venue", { chip: "best" });
+    const props = [...all.filter((p) => !benched(p)), ...all.filter(benched)];
     const per = new Map(), topProps = [];
     for (const p of props) { const c = per.get(p.player.id) || 0; if (c >= 2) continue; per.set(p.player.id, c + 1); topProps.push(p); if (topProps.length >= 10) break; }
     const fx = { id: f.id, comp: f.comp };
