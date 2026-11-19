@@ -1,0 +1,62 @@
+# Daily Brief: free "autopilot" research on GitHub's machines.
+# Every morning it analyses every fixture in the next 36 hours across all
+# leagues (team tips, totals, player bets, streaks) and publishes
+# brief.json to the "daily-brief" branch, which the app reads.
+name: Daily Brief
+
+on:
+  schedule:
+    - cron: "15 6 * * *"   # 06:15 UTC every day (06:15 UK winter / 07:15 UK summer); GitHub may start it a little late
+  workflow_dispatch: {}    # "Run workflow" button for an instant refresh
+
+permissions:
+  contents: write
+
+concurrency:
+  group: daily-brief
+  cancel-in-progress: false
+
+jobs:
+  brief:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      TZ: Europe/London
+      NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      # Finished matches never change, so they're kept between runs to save time.
+      - uses: actions/cache@v4
+        with:
+          path: .brief-cache
+          key: brief-cache-${{ github.run_id }}
+          restore-keys: brief-cache-
+
+      - name: Research today's fixtures
+        env:
+          PITCHAPI_KEY: ${{ secrets.PITCHAPI_KEY }}
+          FOOTBALL_DATA_KEY: ${{ secrets.FOOTBALL_DATA_KEY }}
+        run: node scripts/daily-brief.mjs
+
+      - name: Publish the brief
+        run: |
+          cd out
+          git init -q -b daily-brief
+          git config user.name "DayleeStatCardz Brief"
+          git config user.email "actions@users.noreply.github.com"
+          git add brief.json summary.txt
+          git commit -q -m "Daily Brief $(date +'%a %d %b %Y %H:%M')"
+          git push -q -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" daily-brief
+
+      # Optional free phone notification: install the "ntfy" app, subscribe to a
+      # private topic name, and save that name as the NTFY_TOPIC secret.
+      - name: Notify phone
+        if: ${{ env.NTFY_TOPIC != '' }}
+        run: |
+          curl -s -H "Title: DayleeStatCardz Daily Brief" -H "Tags: soccer" -H "Priority: default" \
+               --data-binary @out/summary.txt "https://ntfy.sh/${NTFY_TOPIC}" > /dev/null

@@ -371,11 +371,13 @@ async function viewHome() {
   }
   root.innerHTML = `<div class="card hero"><h1>Last 10 home.<br>Last 10 away.</h1><p>Real hit rates for goals, corners & cards — tap any % to see every match behind it.</p>
     <div class="hero-stats" id="heroStats"><div class="hero-stat"><div class="n" id="hsLeagues">—</div><div class="l">Leagues</div></div><div class="hero-stat"><div class="n" id="hsFix">—</div><div class="l">Fixtures (21 days)</div></div><div class="hero-stat"><div class="n">0</div><div class="l">Made-up stats</div></div></div></div>
+    <div id="briefBanner" style="margin-top:12px"></div>
     <div id="chipsWrap" style="margin-top:14px">${skeleton(1, 40)}</div><div id="fxWrap" style="margin-top:4px">${skeleton(5)}</div>`;
   try {
     await loadComps();
     $("#chipsWrap").innerHTML = compChips(S.comp);
     if ($("#hsLeagues")) $("#hsLeagues").textContent = S.comps.length;
+    if (typeof briefBanner === "function") briefBanner();
   } catch (e) { $("#chipsWrap").innerHTML = ""; $("#fxWrap").innerHTML = errorBox(e, "reload"); return; }
   try {
     const list = await loadFixtures(S.comp);
@@ -899,7 +901,8 @@ function route() {
   const parts = h.split("/");
   window.scrollTo(0, 0);
   if (parts[0] === "match" && parts[1] && parts[2]) { S.route = "match"; return viewMatch(parts[1], parts[2]); }
-  if (parts[0] === "search") { S.route = "search"; return viewSearch(); }
+  if (parts[0] === "search") { S.route = "search"; return typeof viewAsk === "function" ? viewAsk() : viewSearch(); }
+  if (parts[0] === "brief" && typeof viewBrief === "function") { S.route = "brief"; return viewBrief(); }
   if (parts[0] === "players") { S.route = "players"; return viewPlayers(); }
   if (parts[0] === "favourites") { S.route = "favourites"; return viewFavs(); }
   if (parts[0] === "sources") { S.route = "sources"; return viewSources(); }
@@ -932,7 +935,7 @@ document.addEventListener("click", async (ev) => {
   } else if (a === "tip") openTip(Number(b.dataset.i));
   else if (a === "hero") { S.hero[S.tab] = b.dataset.id; renderMatchBody(); }
   else if (a === "market") openMarket(b.dataset.id);
-  else if (a === "split") { S.split = !S.split; store.set("split", S.split); renderMatchBody(); }
+  else if (a === "split") { S.split = !S.split; store.set("split", S.split); if (S.route === "match") renderMatchBody(); }
   else if (a === "totals") openTotals(b.dataset.side);
   else if (a === "closeSheet") closeSheet();
   else if (a === "favTeam") {

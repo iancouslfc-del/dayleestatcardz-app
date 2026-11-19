@@ -29,7 +29,7 @@ import java.util.concurrent.Executors;
  */
 public class MainActivity extends Activity {
 
-    private static final String[] ALLOWED_HOSTS = { "api.pitchapi.dev", "api.football-data.org" };
+    private static final String[] ALLOWED_HOSTS = { "api.pitchapi.dev", "api.football-data.org", "raw.githubusercontent.com" };
 
     private WebView web;
     private final ExecutorService pool = Executors.newFixedThreadPool(6);

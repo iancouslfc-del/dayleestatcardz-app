@@ -681,5 +681,5 @@ function setLeagueOverride(code, leagueId) {
   mem.delete("pitch:resolved");
 }
 
-window.Engine = { call, refresh, setLeagueOverride, COMPETITIONS, _test: { parseStats, parseEvents, nameSim, crossCheck } };
+window.Engine = { call, refresh, setLeagueOverride, COMPETITIONS, fetchText: (url) => rawGet(url, { Accept: "application/json" }), _test: { parseStats, parseEvents, nameSim, crossCheck } };
 })();
