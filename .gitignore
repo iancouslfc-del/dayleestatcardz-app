@@ -6,3 +6,4 @@ local.properties
 .idea/
 .brief-cache/
 out/
+out-diag/

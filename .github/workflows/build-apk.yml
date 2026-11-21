@@ -5,6 +5,11 @@ name: Build APK
 on:
   push:
     branches: [main]
+    paths-ignore:            # changes to the morning research / data check don't need a new APK
+      - "scripts/**"
+      - ".github/workflows/daily-brief.yml"
+      - ".github/workflows/diagnose.yml"
+      - "**.md"
   workflow_dispatch: {}
 
 permissions:
