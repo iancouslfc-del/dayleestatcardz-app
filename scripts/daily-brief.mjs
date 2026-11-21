@@ -75,7 +75,7 @@ plInit();
 const r2 = (x) => Math.round(x * 10) / 10;
 const slimTip = (t) => ({ label: t.label, cat: t.cat, period: t.period, dir: t.dir, line: t.line, pooled: r2(t.pooled), hits: t.hits, n: t.n, score: t.score, small: !!t.small, strong: !!t.strong,
   legs: t.legs.map((l) => ({ label: l.label, hits: l.res.hits, n: l.res.n, pct: r2(l.res.pct) })) });
-const slimProp = (p) => ({ ...p, pct: r2(p.pct), rows: p.rows.map((r) => ({ v: r.v, hit: r.hit, min: r.min, zf: r.zf, home: r.home, date: r.date, opp: { name: r.opp.name, img: r.opp.img } })) });
+const slimProp = (p) => ({ ...p, pct: r2(p.pct), rows: p.rows.map((r) => ({ v: r.v, hit: r.hit, min: r.min, zf: r.zf, home: r.home, date: r.date, opp: { name: r.opp.name, img: r.opp.img }, cs: r.cs || null })) });
 
 // Streaks: for every player & stat, how many games in a row (newest first) each line was hit — all games this season.
 function streaksFor(A, fx) {
@@ -158,7 +158,7 @@ function pack(b) {
   const walk = (o) => { if (Array.isArray(o)) return o.map(walk); if (o && typeof o === "object") { const r = {}; for (const [k, v] of Object.entries(o)) r[k] = k === "img" ? ref(v) : walk(v); return r; } return o; };
   const out = walk(b);
   for (const f of out.fixtures) {
-    for (const p of f.players) { delete p.fixture; delete p.comp; p.rows = p.rows.map((r) => [r.v, r.hit, r.min, r.zf ? 1 : 0, r.home ? 1 : 0, r.date, r.opp.name, r.opp.img]); }
+    for (const p of f.players) { delete p.fixture; delete p.comp; p.rows = p.rows.map((r) => (r.cs ? [r.v, r.hit, r.min, r.zf ? 1 : 0, r.home ? 1 : 0, r.date, r.opp.name, r.opp.img, r.cs] : [r.v, r.hit, r.min, r.zf ? 1 : 0, r.home ? 1 : 0, r.date, r.opp.name, r.opp.img])); }
     for (const s of f.streaks) { delete s.fx; delete s.team; }
   }
   out.v = 2; out.imgs = [...imgs.keys()];

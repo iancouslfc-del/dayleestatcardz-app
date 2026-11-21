@@ -31,6 +31,8 @@ const COMPETITIONS = [
 ];
 
 const SAMPLE_SIZE = 10;
+const CLUB_SAMPLE = 20;             // player stats: a team's last 20 club games THIS season, every competition we can see
+const EURO = new Set(["CL", "EL", "ECL"]);
 const MAX_SEASONS_BACK = 4;         // how far back we look to fill a 10-match sample
 const FIXTURE_WINDOW_DAYS = 21;     // upcoming fixtures shown
 const PITCH_BASE = "https://api.pitchapi.dev";
@@ -259,6 +261,59 @@ async function sampleFor(comp, team, side, beforeIso, keys) {
 }
 
 // ---------------------------------------------------------------------
+//  4b. Club season — every game a team has played THIS season in any
+//      competition the app can see (league + Champions/Europa/Conference
+//      League + that country's domestic cups when PitchAPI lists them).
+//      Used for PLAYER stats only; team stats keep the one-competition rule.
+// ---------------------------------------------------------------------
+const CUP_RE = /\b(cup|copa|coupe|coppa|pokal|trophy|shield|supercopa|supercoppa|ta[cç]a)\b/i;
+const NOT_SENIOR_RE = /women|femen|femin|\bu\s?\d\d\b|under|youth|reserve|junior|primavera|sub-?\d\d/i;
+
+async function playedThisSeason(comp, before, keys, fallback) {
+  let done = [];
+  try { done = (await seasonMatches(comp, comp.seasons[0] || null, "played", keys)).filter(finished); } catch {}
+  if (fallback && !done.some((m) => Date.parse(m.time) < before)) {
+    try { const alt = (await seasonMatches(comp, null, "all", keys)).filter(finished); if (alt.length) done = alt; } catch {}
+  }
+  return done;
+}
+async function cupMatches(l, keys) {
+  const season = l.seasons[0] || null;
+  const q = "status=played" + (season ? "&season=" + encodeURIComponent(season).replace(/%2F/gi, "/") : "");
+  // memory-only cache: cups the app doesn't list shouldn't fill phone storage
+  return cached(`pitch:cup:${l.id}:${season || "x"}`, 900, async () => ((await pitch(`/v1/leagues/${l.id}/matches?${q}`, keys))?.matches || []).map((m) => slimMatch(m, "X")));
+}
+
+async function clubSeason(fixtureComp, team, beforeIso, keys) {
+  const before = Date.parse(beforeIso);
+  const key = teamKey(team.name);
+  const mine = (m) => sameTeam(m.home, team, key) || sameTeam(m.away, team, key);
+  const comps = (await cached("pitch:resolved", 3600, () => resolveCompetitions(keys))).filter((c) => c.resolved);
+  const lists = await Promise.all(comps.map(async (c) => ({ c, list: await playedThisSeason(c, before, keys, c.code === fixtureComp.code) })));
+  // The team's domestic league sets when "this season" started (with ~10 weeks' grace for early cup / European qualifiers).
+  let start = null, cc = null;
+  const dom = lists.find((x) => !EURO.has(x.c.code) && x.list.some(mine));
+  if (dom) { start = Math.min(...dom.list.map((m) => Date.parse(m.time))); cc = dom.c.leagueCC; }
+  const from = start ? start - 75 * 86400e3 : before - 300 * 86400e3;
+  const out = [];
+  const add = (m, name, short, own) => {
+    const t = Date.parse(m.time);
+    if (t >= before || t < from || !mine(m) || out.some((x) => x.id === m.id)) return;
+    out.push({ ...m, cur: true, compName: name, compShort: short, own });
+  };
+  for (const { c, list } of lists) for (const m of list) add(m, c.name, c.short, c.code === fixtureComp.code);
+  if (cc) {
+    try {
+      const cups = (await pitchLeagues(keys)).filter((l) => l.cc === cc && CUP_RE.test(l.name) && !NOT_SENIOR_RE.test(l.name) && !comps.some((c) => c.leagueId === l.id));
+      const got = await Promise.allSettled(cups.map((l) => cupMatches(l, keys)));
+      got.forEach((r, i) => { if (r.status === "fulfilled") for (const m of r.value) if (finished(m)) add(m, cups[i].name, cups[i].name, false); });
+    } catch {}
+  }
+  out.sort((a, b) => Date.parse(b.time) - Date.parse(a.time));
+  return out.slice(0, CLUB_SAMPLE);
+}
+
+// ---------------------------------------------------------------------
 //  5. football-data.org cross-check (optional)
 // ---------------------------------------------------------------------
 const STOP = new Set("fc afc cf sc ac ec se cr ca cd ud rcd sd ssc us as acf fk sk bk club de da do del la le the football futebol futbol calcio fbpa sad and of".split(" "));
@@ -333,6 +388,8 @@ async function analysis(code, matchId, keys) {
     sampleFor(comp, fx.home, "any", fx.time, keys),
     sampleFor(comp, fx.away, "any", fx.time, keys),
   ]);
+  // Player stats: every club game this season (league + Europe + cups). Never blocks the team stats.
+  const [hClub, aClub] = await Promise.all([fx.home, fx.away].map((t) => clubSeason(comp, t, fx.time, keys).catch(() => null)));
   let fdList = null, fdError = null;
   try { fdList = await fdMatches(comp.fd, keys); } catch (e) { fdError = e.message; }
   const tag = (m) => ({ ...m, fd: fdError ? { status: "error", error: fdError } : crossCheck(m, fdList) });
@@ -342,8 +399,8 @@ async function analysis(code, matchId, keys) {
     competition: { code: comp.code, name: comp.name, logo: comp.logo },
     season: comp.seasons[0] || null,
     fixture: { ...fx, referee: raw.referee || null, stadium: raw.stadium || null },
-    home: { team: fx.home, side: "home", seasonsScanned: h.seasonsScanned, sample: h.matches.map(tag), allSample: hAll.matches },
-    away: { team: fx.away, side: "away", seasonsScanned: a.seasonsScanned, sample: a.matches.map(tag), allSample: aAll.matches },
+    home: { team: fx.home, side: "home", seasonsScanned: h.seasonsScanned, sample: h.matches.map(tag), allSample: hAll.matches, club: hClub },
+    away: { team: fx.away, side: "away", seasonsScanned: a.seasonsScanned, sample: a.matches.map(tag), allSample: aAll.matches, club: aClub },
     fdEnabled: !!keys.fd, fdError,
   };
 }

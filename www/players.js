@@ -67,8 +67,18 @@ async function plLineups(id) {
   PL.lineups.set(id, lu);
   return lu;
 }
-// Player stats use THIS SEASON only (matches from the current season in this competition).
-const plSample = (A, key, mode) => (mode === "all" ? A[key].allSample || A[key].sample : A[key].sample).filter((m) => m.cur);
+// Player stats use THIS SEASON only: every club game the team has played this season in any competition
+// the app can see (league + Champions/Europa/Conference League + domestic cups PitchAPI lists), up to the last 20.
+// Older analyses without that list fall back to this competition's games.
+function plSample(A, key, mode) {
+  const side = A[key];
+  if (Array.isArray(side.club) && side.club.length) {
+    if (mode === "all") return side.club;
+    const t = side.team, isMe = (x) => !!x && (x.id === t.id || tName(x.name) === tName(t.name));
+    return side.club.filter((m) => isMe(key === "home" ? m.home : m.away));
+  }
+  return (mode === "all" ? side.allSample || side.sample : side.sample).filter((m) => m.cur);
+}
 const seasonShort = (s) => { const m = String(s || "").match(/^(\d{4})\/(\d{4})$/); return m ? m[1].slice(2) + "/" + m[2].slice(2) : String(s || "this season"); };
 function plIds(A, mode) { return [...plSample(A, "home", mode), ...plSample(A, "away", mode)].map((m) => m.id); }
 
@@ -117,7 +127,8 @@ function buildPlayerProps(A, mode, opts = {}) {
         rec.apps.push({ m, opp, isHome, min: p.s.min, s: p.s, zf: p.zf || [], cardsOk: pd.cardsOk, lbl: p.lbl || {} });
       }
     }
-    const desc = (mode === "all" ? `${team.name} all games` : `${team.name} ${key} games`) + ` · ${seasonShort(A.season)}`;
+    const extra = [...new Set(matches.filter((m) => m.compShort && !m.own).map((m) => m.compShort))];
+    const desc = (mode === "all" ? `${team.name} all games` : `${team.name} ${key} games`) + ` · ${seasonShort(A.season)}` + (extra.length ? ` · inc. ${extra.join(", ")}` : "");
     for (const rec of players.values()) {
       const games = rec.apps.filter((a) => a.min === null || a.min === undefined || a.min >= PL_MIN_MIN);
       if (games.length < PL_SMALL_N) continue;
@@ -156,7 +167,7 @@ function buildPlayerProps(A, mode, opts = {}) {
             stat: def.stat, line, label: propLabel(def, line, def.stat === "tackles" ? tackleLabel : null),
             hits, n, pct, streak, score: wilsonLB(hits, n), small: n < PL_MIN_N, below, mode, desc,
             played45: games.length, teamGames: loaded, status,
-            rows: rows.map((r) => ({ v: r.v, hit: r.v === null ? null : r.v > line, min: r.a.min, zf: r.a.zf.includes(def.stat), opp: { name: r.a.opp.name, img: r.a.opp.img }, home: r.a.isHome, date: r.a.m.time, mid: r.a.m.id })),
+            rows: rows.map((r) => ({ v: r.v, hit: r.v === null ? null : r.v > line, min: r.a.min, zf: r.a.zf.includes(def.stat), opp: { name: r.a.opp.name, img: r.a.opp.img }, home: r.a.isHome, date: r.a.m.time, mid: r.a.m.id, cs: r.a.m.own === false ? r.a.m.compShort || null : null })),
           });
           break; // boldest line that still passes
         }
@@ -237,7 +248,7 @@ function propCard(p, opts = {}) {
         <div class="mn">${r.min === null || r.min === undefined ? "–" : r.min + "'"}</div>
         <div class="op">${crest(r.opp)}</div>
         <div class="dt">${shortDate(r.date)}</div>
-        <div class="ha">${r.home ? "H" : "A"}</div></div>`).join("")}</div>
+        <div class="ha">${r.home ? "H" : "A"}</div>${r.cs ? `<div class="cs">${esc(r.cs)}</div>` : ""}</div>`).join("")}</div>
       ${anyZf ? `<div class="dim small" style="margin-top:6px">Dotted box = stat not listed by the provider for that game, counted as 0.</div>` : ""}
     </div>
   </article>`;
@@ -295,8 +306,8 @@ function plSchedule() {
 }
 function plNote() {
   return `<div class="note card small"><b>How player lines work.</b><ul>
-    <li><b>This season only:</b> player lines use matches from the current season in this competition — nothing from previous seasons.</li>
-    <li><b>Home / away rule</b> (default): home-team players use their team's home games this season (up to the last 10), away-team players their away games. “All games” uses the last 10 this season at any venue.</li>
+    <li><b>This season only, every club game:</b> player lines use the team's games from this season in every competition the app can see — league, Champions League, Europa League, Conference League and domestic cups when the data server lists them. Europe and cup games are tagged under the date. Internationals don't count. Nothing from previous seasons.</li>
+    <li><b>Home / away rule</b> (default): home-team players use their team's home games this season, away-team players their away games. “All games” uses every venue — up to the last ${20} club games.</li>
     <li>Only appearances of <b>${PL_MIN_MIN}+ minutes</b> count. A line shows when the player hit it in ${PL_MIN_RATE}%+ of those games (${PL_MIN_N}+ games, or ${PL_SMALL_N}–${PL_MIN_N - 1} flagged “Small sample”). The boldest line that passes is shown.</li>
     <li>Stats come from PitchAPI's player stat lines. Cards come from the card events (regular time). Bookmakers may count tackles, shots and cards differently — check their rules.</li>
     <li><b>★ Best</b> shows only lines at ${PL_MIN_RATE}%+. Pick a market (Shots, Assists…) to see <b>every player ranked</b> by their real hit rate — including those below ${PL_MIN_RATE}% in amber/red.</li>

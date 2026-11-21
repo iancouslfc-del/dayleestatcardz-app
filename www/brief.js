@@ -23,7 +23,7 @@ function unpackBrief(d) {
     const fixture = { id: f.id, time: f.time, home: f.home, away: f.away };
     for (const p of f.players || []) {
       p.fixture = fixture; p.comp = f.comp;
-      p.rows = p.rows.map((r) => (Array.isArray(r) ? { v: r[0], hit: r[1], min: r[2], zf: !!r[3], home: !!r[4], date: r[5], opp: { name: r[6], img: pic(r[7]) } } : r));
+      p.rows = p.rows.map((r) => (Array.isArray(r) ? { v: r[0], hit: r[1], min: r[2], zf: !!r[3], home: !!r[4], date: r[5], opp: { name: r[6], img: pic(r[7]) }, cs: r[8] || null } : r));
     }
     for (const s of f.streaks || []) { s.fx = { id: f.id, comp: f.comp }; s.team = s.side === "home" ? f.home : f.away; }
   }

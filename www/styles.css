@@ -551,3 +551,10 @@ pre.raw { max-height: 320px; overflow: auto; font-size: 11px; background: #000; 
 .aq select option { background: #101513; color: #eef4f0; }
 .aq-sub { margin: -4px 0 10px; }
 .ask .card { background: var(--card-2); }
+
+/* competition tag under a game in the player history strip (Europe / cups) */
+.hb .cs { margin-top: -2px; font-size: 9px; font-weight: 700; letter-spacing: .4px; color: var(--blue); max-width: 46px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hist-strip { align-items: flex-start; }
+.hb { align-content: start; }
+.pc-row > div:first-child .lbl { white-space: normal; line-height: 1.35; }
+.pc-big span { white-space: nowrap; }
