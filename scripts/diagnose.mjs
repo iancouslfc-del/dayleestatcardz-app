@@ -59,6 +59,17 @@ const comps = (await call("competitions")).competitions;
 say(`\n== App competitions ==`);
 for (const c of comps) say(`${c.code.padEnd(4)} -> ${c.leagueName || "NOT FOUND"} (${c.leagueId || "-"}) current season ${c.season || "?"}`);
 
+// sample of the raw match-list shape (which fields the list endpoint gives us)
+try {
+  const pd = comps.find((c) => c.code === "PD") || comps[0];
+  const d = await pitch(`/v1/leagues/${pd.leagueId}/matches?status=played&season=${encodeURIComponent(pd.season || "").replace(/%2F/gi, "/")}`);
+  const m = (d?.matches || [])[0];
+  say(`\n== Match-list fields (${pd.code}) ==`);
+  say(m ? Object.keys(m).join(", ") : "no matches");
+  if (m) say("referee field: " + JSON.stringify(m.referee ?? m.referees ?? null));
+  if (m) { const full = await pitch(`/v1/matches/${m.id}`); say("full match fields: " + Object.keys(full || {}).join(", ")); say("full referee: " + JSON.stringify(full?.referee ?? null) + "  venue: " + JSON.stringify(full?.stadium ?? full?.venue ?? null)); }
+} catch (e) { say("list-shape check failed: " + e.message); }
+
 if (TEAM) {
   // 2. every game this team has in ANY PitchAPI competition (latest season of each)
   say(`\n== Every finished game for "${TEAM}" (latest season of each competition) ==`);
