@@ -372,6 +372,7 @@ async function viewHome() {
   root.innerHTML = `<div class="card hero"><h1>Last 10 home.<br>Last 10 away.</h1><p>Real hit rates for goals, corners & cards — tap any % to see every match behind it.</p>
     <div class="hero-stats" id="heroStats"><div class="hero-stat"><div class="n" id="hsLeagues">—</div><div class="l">Leagues</div></div><div class="hero-stat"><div class="n" id="hsFix">—</div><div class="l">Fixtures (21 days)</div></div><div class="hero-stat"><div class="n">0</div><div class="l">Made-up stats</div></div></div></div>
     <div id="briefBanner" style="margin-top:12px"></div>
+    <a class="card cm-entry" href="#/slate" style="margin-top:10px"><span class="cm-y">🟨</span><div><b>Card Method</b><span>Yellow-card research: slate triage, players graded, your log</span></div><span class="go">OPEN ${ICON.chev}</span></a>
     <div id="chipsWrap" style="margin-top:14px">${skeleton(1, 40)}</div><div id="fxWrap" style="margin-top:4px">${skeleton(5)}</div>`;
   try {
     await loadComps();
@@ -481,6 +482,7 @@ function renderMatchBody() {
   }
   html += `</div>`;
   html += `<div class="note card small">“Combined” pools both samples (up to 20 matches). It is a <b>historical hit rate, not a prediction</b> or probability.</div>`;
+  if (tab === "cards") html = html.replace('<div class="section-title">', `<a class="card cm-entry" href="#/method/${S.matchComp || A.fixture.comp || ""}/${A.fixture.id}"><span class="cm-y">🟨</span><div><b>Yellow Card Method</b><span>Referee, team cards, every player graded A–F, prices → BET / WATCH / PASS</span></div><span class="go">OPEN ${ICON.chev}</span></a><div class="section-title">`);
   if (tab === "cards") html += cardRulesNote(true);
   if (tab === "goals" && period !== "FT") html += `<div class="note card small">Half-time scores: football-data.org's official HT score is used when it verified the same match; otherwise the HT score is rebuilt from PitchAPI's goal timeline (only if it reconciles exactly with the final score). 2nd-half goals = full-time minus half-time.</div>`;
   html += `<div class="footer">Data: PitchAPI${A.fdEnabled ? " · football-data.org" : ""} · Analysis generated ${fmtTime(A.generatedAt)}<br>${esc(A.rule)}</div>`;
@@ -903,6 +905,9 @@ function route() {
   if (parts[0] === "match" && parts[1] && parts[2]) { S.route = "match"; return viewMatch(parts[1], parts[2]); }
   if (parts[0] === "search") { S.route = "search"; return typeof viewAsk === "function" ? viewAsk() : viewSearch(); }
   if (parts[0] === "brief" && typeof viewBrief === "function") { S.route = "brief"; return viewBrief(); }
+  if (parts[0] === "method" && parts[1] && parts[2] && typeof viewMethod === "function") { S.route = "method"; return viewMethod(parts[1], parts[2], parts[3] ? decodeURIComponent(parts[3]) : null); }
+  if (parts[0] === "slate" && typeof viewSlate === "function") { S.route = "slate"; return viewSlate(); }
+  if (parts[0] === "cardlog" && typeof viewCardLog === "function") { S.route = "cardlog"; return viewCardLog(); }
   if (parts[0] === "players") { S.route = "players"; return viewPlayers(); }
   if (parts[0] === "favourites") { S.route = "favourites"; return viewFavs(); }
   if (parts[0] === "sources") { S.route = "sources"; return viewSources(); }

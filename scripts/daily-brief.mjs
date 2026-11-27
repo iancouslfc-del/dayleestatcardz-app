@@ -151,6 +151,60 @@ for (const f of fixtures) {
   }
 }
 
+// ---------- 2b. card tables for the Card Method: referee & team yellow-card rates per competition ----------
+// Match lists don't name the referee, so every finished league match this season is read once (then kept in
+// the cache forever — finished matches never change). A budget per run spreads the first fill over a few days.
+const CARD_BUDGET = Number(process.env.BRIEF_MAX_NEW_CARD_MATCHES || 900);
+async function pitchRaw(p) {
+  const r = await fetchFn("https://api.pitchapi.dev" + p, { headers: { "X-API-KEY": process.env.PITCHAPI_KEY, Accept: "application/json" } });
+  const body = JSON.parse((await r.text()) || "null");
+  if (r.status !== 200 || body?.error) throw new Error(`HTTP ${r.status} ${body?.error?.message || ""}`.trim());
+  return body?.data;
+}
+const cards = { v: 1, generatedAt: brief.generatedAt, comps: {} };
+{
+  let budget = CARD_BUDGET;
+  const first = [...new Set(brief.fixtures.map((f) => f.comp))];
+  const order = [...first, ...COMPS.map((c) => c.code).filter((c) => !first.includes(c))];
+  for (const code of order) {
+    const ci = compInfo[code];
+    if (!ci || !ci.leagueId) continue;
+    try {
+      const q = "status=played" + (ci.season ? "&season=" + encodeURIComponent(ci.season).replace(/%2F/gi, "/") : "");
+      const list = ((await pitchRaw(`/v1/leagues/${ci.leagueId}/matches?${q}`))?.matches || [])
+        .filter((m) => String(m.status).toLowerCase() === "finished")
+        .sort((a, b) => Date.parse(b.time_utc || b.date) - Date.parse(a.time_utc || a.date));
+      const need = list.filter((m) => !store["cm:" + m.id]).slice(0, Math.max(0, budget));
+      budget -= need.length;
+      if (need.length) await loadDetails(need.map((m) => m.id), () => {});
+      for (const m of need) {
+        const d = S.details.get(m.id);
+        if (!d || !d.cards || !d.cards.FT) continue;
+        store["cm:" + m.id] = JSON.stringify({ r: d.referee || null, t: m.time_utc || m.date, h: [m.home_team?.id, m.home_team?.name], a: [m.away_team?.id, m.away_team?.name], y: d.cards.FT.y, rc: d.cards.FT.r });
+      }
+      const rows = list.map((m) => { try { return JSON.parse(store["cm:" + m.id] || "null"); } catch { return null; } }).filter(Boolean);
+      const C = { name: ci.name, season: ci.season || null, listed: list.length, games: rows.length, yc: 0, rc: 0, refs: {}, teams: {} };
+      for (const x of rows) {
+        const y = x.y[0] + x.y[1];
+        C.yc += y; C.rc += x.rc[0] + x.rc[1];
+        if (x.r) {
+          const R = (C.refs[x.r] ||= { n: 0, yc: 0, rc: 0, last: [] });
+          R.n++; R.yc += y; R.rc += x.rc[0] + x.rc[1];
+          if (R.last.length < 10) R.last.push([String(x.t).slice(0, 10), x.h[1], x.a[1], y]);
+        }
+        for (const [k, me, op] of [["h", 0, 1], ["a", 1, 0]]) {
+          const tm = k === "h" ? x.h : x.a;
+          const T = (C.teams[tm[0]] ||= { name: tm[1], n: 0, own: 0, opp: 0, hn: 0, hown: 0, hopp: 0, an: 0, aown: 0, aopp: 0 });
+          T.n++; T.own += x.y[me]; T.opp += x.y[op];
+          T[k + "n"]++; T[k + "own"] += x.y[me]; T[k + "opp"] += x.y[op];
+        }
+      }
+      cards.comps[code] = C;
+      log(`cards ${code}: ${rows.length}/${list.length} matches with card data, ${Object.keys(C.refs).length} referees`);
+    } catch (e) { brief.errors.push(`Card tables ${code}: ${e.message}`); log(`cards ${code}: ERROR ${e.message}`); }
+  }
+}
+
 // ---------- 3. write (packed: each picture listed once, game rows as short arrays) ----------
 function pack(b) {
   const imgs = new Map();
@@ -166,6 +220,7 @@ function pack(b) {
 }
 fs.mkdirSync(OUT_DIR, { recursive: true });
 fs.writeFileSync(path.join(OUT_DIR, "brief.json"), JSON.stringify(pack(brief)));
+fs.writeFileSync(path.join(OUT_DIR, "cards.json"), JSON.stringify(cards));
 fs.mkdirSync(CACHE_DIR, { recursive: true });
 fs.writeFileSync(CACHE_FILE, JSON.stringify(store));
 const kb = Math.round(fs.statSync(path.join(OUT_DIR, "brief.json")).size / 1024);

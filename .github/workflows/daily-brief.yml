@@ -49,7 +49,7 @@ jobs:
           git init -q -b daily-brief
           git config user.name "DayleeStatCardz Brief"
           git config user.email "actions@users.noreply.github.com"
-          git add brief.json summary.txt
+          git add brief.json summary.txt cards.json
           git commit -q -m "Daily Brief $(date +'%a %d %b %Y %H:%M')"
           git push -q -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" daily-brief
 
