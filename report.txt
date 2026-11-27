@@ -1,0 +1,94 @@
+== PitchAPI competitions (77) ==
+l_1rPvVD  1. Division [DEN]  seasons: 2024/2025, 2025/2026, 2026/2027
+l_1BFfna  1. Lig [INT]  seasons: 2024/2025, 2025/2026, 2026/2027
+l_0F4I4F  1. Liga [CZE]  seasons: 2024/2025, 2025/2026, 2026/2027
+l_4MU9Yh  1. liga [SVK]  seasons: 2024/2025, 2025/2026, 2026/2027
+l_3hvsne  2. Bundesliga [GER]  seasons: 2024/2025, 2025/2026, 2026/2027
+l_47077Y  3. Liga [GER]  seasons: 2024/2025, 2025/2026, 2026/2027
+l_4MPd7x  A-League [AUS]  seasons: 2024/2025, 2025/2026, 2026/2027
+l_1XsMdH  Allsvenskan [SWE]  seasons: 2024, 2025, 2026
+l_1TTHxD  Besta deild [ISL]  seasons: 2024, 2025, 2026
+l_1Isor4  Bundesliga [GER]  seasons: 2024/2025, 2025/2026, 2026/2027
+l_3zsMpo  Bundesliga [AUT]  seasons: 2024/2025, 2025/2026, 2026/2027
+l_4auCPk  Challenge League [SUI]  seasons: 2024/2025, 2025/2026, 2026/2027
+l_1pQOHK  Challenger Pro League [BEL]  seasons: 2025/2026, 2026/2027
+l_0bfbkO  Champions League [INT-2]  seasons: 2024/2025, 2025/2026, 2026/2027
+l_4DWyTT  Championship [ENG]  seasons: 2024/2025, 2025/2026, 2026/2027
+l_2WZ2tt  Conference League [INT-2]  seasons: 2024/2025, 2025/2026, 2026/2027
+l_4FPF2L  Division Profesional [PAR]  seasons: 2025, 2026
+l_49KZaB  Eerste Divisie [NED]  seasons: 2024/2025, 2025/2026, 2026/2027
+l_214sqK  Ekstraklasa [POL]  seasons: 2025/2026, 2026/2027
+l_0uqFK8  Eliteserien [NOR]  seasons: 2024, 2025, 2026
+l_4H43wr  Eredivisie [NED]  seasons: 2024/2025, 2025/2026, 2026/2027
+l_38d9HA  Europa League [INT-2]  seasons: 2024/2025, 2025/2026, 2026/2027
+l_2L6d1F  First Division A [BEL]  seasons: 2024/2025, 2025/2026, 2026/2027
+l_2tFk9k  HNL [CRO]  seasons: 2024/2025, 2025/2026, 2026/2027
+l_1qpFVw  Indian Super League [IND]  seasons: 2024/2025, 2025/2026, 2026/2027
+l_2ApGa4  J. League [JPN]  seasons: 2024, 2025, 2026
+l_3fglZv  J3 League [JPN]  seasons: 2024, 2025, 2026/2027
+l_2EKrnc  K League 1 [KOR]  seasons: 2024, 2025, 2026
+l_271pqa  K League 2 [KOR]  seasons: 2024, 2025, 2026
+l_0ErfuF  LaLiga [ESP]  seasons: 2024/2025, 2025/2026, 2026/2027
+l_3kyHLd  LaLiga2 [ESP]  seasons: 2025/2026, 2026/2027
+l_0ahLw8  League One [ENG]  seasons: 2024/2025, 2025/2026, 2026/2027
+l_1W6idJ  League Two [ENG]  seasons: 2024/2025, 2025/2026, 2026/2027
+l_3uNwVX  Liga 1 [PER]  seasons: 2024, 2025, 2026
+l_0kSJLz  Liga I [ROU]  seasons: 2024/2025, 2025/2026, 2026/2027
+l_3v84VE  Liga MX [MEX]  seasons: 2024/2025, 2025/2026, 2026/2027
+l_4QexZg  Liga Portugal [POR]  seasons: 2024/2025, 2025/2026, 2026/2027
+l_45VZuL  Liga Profesional [ARG]  seasons: 2024, 2025, 2026
+l_3qNjzC  Liga de Primera [CHI]  seasons: 2024, 2025, 2026
+l_16Sq13  Ligat ha'Al [ISR]  seasons: 2024/2025, 2025/2026, 2026/2027
+l_3FJFUl  Ligue 1 [FRA]  seasons: 2024/2025, 2025/2026, 2026/2027
+l_0275VP  Ligue 2 [FRA]  seasons: 2025/2026, 2026/2027
+l_0eg6C9  MLS [USA]  seasons: 2024, 2025, 2026
+l_3Tn1kG  MLS Next Pro [USA]  seasons: 2024, 2025, 2026
+l_4V6jPs  Paulista A1 [BRA]  seasons: 2024, 2025, 2026
+l_1eJSA7  Premier Division [IRL]  seasons: 2024, 2025, 2026
+l_46aZMC  Premier League [EGY]  seasons: 2025/2026, 2026/2027
+l_4WFCIZ  Premier League [ENG]  seasons: 2024/2025, 2025/2026, 2026/2027
+l_3UiOcj  Premier League [CAN]  seasons: 2024, 2025, 2026
+l_2Mh0jT  Premier League [RUS]  seasons: 2025/2026, 2026/2027
+l_1Kknkl  Premier Soccer League [RSA]  seasons: 2025/2026, 2026/2027
+l_1LMdEO  Premiership [SCO]  seasons: 2024/2025, 2025/2026, 2026/2027
+l_1xXulJ  Primera A [COL]  seasons: 2024, 2025, 2026
+l_1TVRZW  Primera Division [VEN]  seasons: 2024, 2025, 2026
+l_4dzm4e  Primera Division [BOL]  seasons: 2024, 2025, 2026
+l_0aEfof  Pro League [UAE]  seasons: 2024/2025, 2025/2026, 2026/2027
+l_3wr44B  Qatar Stars League [QAT]  seasons: 2024/2025, 2025/2026, 2026/2027
+l_3CB6qX  Saudi First Division [KSA]  seasons: 2024/2025, 2025/2026, 2026/2027
+l_0Lpz1f  Saudi Pro League [KSA]  seasons: 2024/2025, 2025/2026, 2026/2027
+l_1dmt9H  Serie A [ECU]  seasons: 2024, 2025, 2026
+l_1D8Xrl  Serie A [BRA]  seasons: 2024, 2025, 2026
+l_0ALvwF  Serie A [ITA]  seasons: 2024/2025, 2025/2026, 2026/2027
+l_3qUkB8  Serie B [BRA]  seasons: 2024, 2025, 2026
+l_0jy5yE  Serie B [ITA]  seasons: 2025/2026, 2026/2027
+l_20pNSc  Super League [CHN]  seasons: 2024, 2025, 2026
+l_4d6Bwl  Super League [SUI]  seasons: 2024/2025, 2025/2026, 2026/2027
+l_3xwVF2  Super League 1 [GRE]  seasons: 2024/2025, 2025/2026, 2026/2027
+l_0S1uaf  Super Lig [INT]  seasons: 2024/2025, 2025/2026, 2026/2027
+l_2xBPKk  Super Liga [SRB]  seasons: 2024/2025, 2025/2026, 2026/2027
+l_49Zmno  Superligaen [DEN]  seasons: 2024/2025, 2025/2026, 2026/2027
+l_3hW1NO  Thai League 1 [THA]  seasons: 2025/2026, 2026/2027
+l_3yVUAO  USL Championship [USA]  seasons: 2024, 2025, 2026
+l_3Kf7Ni  USL League One [USA]  seasons: 2024, 2025, 2026
+l_3Ci5Cg  Veikkausliiga [FIN]  seasons: 2024, 2025, 2026
+l_45xKXM  Virsliga [LVA]  seasons: 2024, 2025, 2026
+l_1SGwQT  Women's Premier League [KSA]  seasons: 2024/2025, 2025/2026, 2026/2027
+l_1XLtP0  World Cup [INT]  seasons: 2022, 2026
+
+== App competitions ==
+PL   -> Premier League (l_4WFCIZ) current season 2026/2027
+ELC  -> Championship (l_4DWyTT) current season 2026/2027
+CL   -> Champions League (l_0bfbkO) current season 2026/2027
+EL   -> Europa League (l_38d9HA) current season 2026/2027
+ECL  -> Conference League (l_2WZ2tt) current season 2026/2027
+PD   -> LaLiga (l_0ErfuF) current season 2026/2027
+SA   -> Serie A (l_0ALvwF) current season 2026/2027
+BSA  -> Serie A (l_1D8Xrl) current season 2026
+
+== Match-list fields (PD) ==
+id, date, time_utc, status, home_team, away_team, score_home, score_away
+referee field: null
+full match fields: id, league, season, home_team, away_team, date, time_utc, status, score_home, score_away, round_name, has_playoff, referee, stadium
+full referee: "Manuel Jesús Orellana Cid"  venue: "Estadio de Mendizorroza"
